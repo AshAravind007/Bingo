@@ -1,23 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Custom Multiplayer Bingo</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Multiplayer Bingo</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
   <style>
-    :root {
-      --bg: #0f172a;
-      --card-bg: #1e293b;
-      --text: #f8fafc;
-      --accent: #38bdf8;
-      --crossed: #e11d48;
-      --btn: #2563eb;
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, sans-serif;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
     body {
-      background-color: var(--bg);
-      color: var(--text);
+      background-color: #0f172a;
+      color: #f8fafc;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -34,14 +31,19 @@
       position: relative;
     }
     .panel {
-      background: var(--card-bg);
+      background: #1e293b;
       padding: 14px;
       border-radius: 12px;
-      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
     }
-    h1 { text-align: center; color: var(--accent); font-size: 1.4rem; }
+    h1 {
+      text-align: center;
+      color: #38bdf8;
+      font-size: 1.4rem;
+      margin-bottom: 4px;
+    }
     .btn {
-      background: var(--btn);
+      background: #2563eb;
       color: white;
       border: none;
       padding: 10px 14px;
@@ -58,7 +60,18 @@
     .btn-warning { background: #f59e0b; color: #000; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     
-    .input-group { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+    .input-group {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    label {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      font-weight: 600;
+      margin-top: 4px;
+    }
     input, select {
       width: 100%;
       padding: 10px 12px;
@@ -70,7 +83,10 @@
       font-weight: bold;
       text-align: center;
     }
-    .row { display: flex; gap: 6px; }
+    .row {
+      display: flex;
+      gap: 6px;
+    }
     
     .players-list {
       display: flex;
@@ -92,9 +108,17 @@
       background: #f59e0b;
       color: #000;
     }
-    .player-meta { display: flex; align-items: center; gap: 6px; }
-    .win-badge { color: #facc15; }
-    .player-row.active-turn .win-badge { color: #78350f; }
+    .player-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .win-badge {
+      color: #facc15;
+    }
+    .player-row.active-turn .win-badge {
+      color: #78350f;
+    }
     .score-badge {
       background: rgba(0, 0, 0, 0.25);
       padding: 2px 6px;
@@ -105,13 +129,13 @@
     .bingo-tracker {
       display: flex;
       justify-content: center;
-      gap: 6px;
+      gap: 5px;
       margin-bottom: 8px;
       flex-wrap: wrap;
     }
     .letter {
       flex: 1;
-      min-width: 28px;
+      min-width: 24px;
       height: 34px;
       display: flex;
       align-items: center;
@@ -154,11 +178,10 @@
       cursor: pointer;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
-      transition: background 0.15s, transform 0.1s;
+      transition: background 0.15s;
     }
-    .cell:active { transform: scale(0.95); }
     .cell.crossed {
-      background: var(--crossed);
+      background: #e11d48;
       text-decoration: line-through;
       opacity: 0.8;
       cursor: not-allowed;
@@ -173,7 +196,7 @@
       margin-top: 6px;
     }
 
-    /* Emoji Bar & Floating Animation */
+    /* Emoji Bar */
     .emoji-bar {
       display: flex;
       justify-content: space-around;
@@ -187,10 +210,8 @@
       border: none;
       font-size: 1.3rem;
       cursor: pointer;
-      transition: transform 0.1s;
       -webkit-tap-highlight-color: transparent;
     }
-    .emoji-btn:active { transform: scale(1.3); }
 
     .floating-reaction {
       position: fixed;
@@ -215,34 +236,37 @@
 
   <div class="panel" id="lobby-panel">
     <div class="input-group">
-      <input type="text" id="player-name" placeholder="Your Name" maxlength="10" />
-      <input type="text" id="room-pin" placeholder="4-Digit Room Code" maxlength="6" />
+      <input type="text" id="player-name" placeholder="Your Name" maxlength="10">
+      <input type="text" id="room-pin" placeholder="4-Digit Room Code" maxlength="6">
       
-      <label style="font-size: 0.8rem; color: #94a3b8; text-align: center;">Select Grid Size (Host setting):</label>
-      <select id="grid-size-select">
-        <option value="5" selected>5 × 5 (Classic 1-25) - Target: 5 Lines</option>
-        <option value="6">6 × 6 (1-36) - Target: 6 Lines</option>
-        <option value="7">7 × 7 (1-49) - Target: 7 Lines</option>
-        <option value="8">8 × 8 (1-64) - Target: 8 Lines</option>
-        <option value="9">9 × 9 (1-81) - Target: 9 Lines</option>
-        <option value="10">10 × 10 (1-100) - Target: 10 Lines</option>
-        <option value="4">4 × 4 (Quick 1-16) - Target: 4 Lines</option>
-        <option value="3">3 × 3 (Mini 1-9) - Target: 3 Lines</option>
+      <label>Host Settings (Size & Rules):</label>
+      <select id="grid-size-select" onchange="updateLinesDropdown()">
+        <option value="3">3 × 3 (Mini 1-9)</option>
+        <option value="4">4 × 4 (Quick 1-16)</option>
+        <option value="5" selected>5 × 5 (Classic 1-25)</option>
+        <option value="6">6 × 6 (1-36)</option>
+        <option value="7">7 × 7 (1-49)</option>
+        <option value="8">8 × 8 (1-64)</option>
+        <option value="9">9 × 9 (1-81)</option>
+        <option value="10">10 × 10 (1-100)</option>
       </select>
+
+      <label>Lines Needed to Win:</label>
+      <select id="target-lines-select"></select>
       
-      <div class="row">
+      <div class="row" style="margin-top: 6px;">
         <button class="btn" onclick="initHost()">Host Room</button>
         <button class="btn btn-secondary" onclick="initJoin()">Join Room</button>
       </div>
     </div>
     <div id="lobby-status" style="margin-top: 10px; font-size: 0.85rem; text-align: center; color: #94a3b8;">
-      Host chooses grid size & creates room. Guests join with room code.
+      Host chooses settings & creates room. Guests enter code & join.
     </div>
   </div>
 
   <div class="panel" id="game-panel" style="display: none;">
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <span style="font-size: 0.8rem; color: #94a3b8;">Room: <b id="display-room" style="color:#38bdf8;"></b> (<span id="display-size"></span>)</span>
+      <span style="font-size: 0.8rem; color: #94a3b8;">Room: <b id="display-room" style="color:#38bdf8;"></b> (<span id="display-size">5×5</span> • <span id="display-target">5 Lines</span>)</span>
       <button class="btn btn-danger" style="width: auto; margin: 0; padding: 4px 10px; font-size: 0.75rem;" onclick="location.reload()">Exit</button>
     </div>
 
@@ -292,6 +316,7 @@
   let hostConn = null;
   
   let gridSize = 5;
+  let targetLinesToWin = 5;
   let totalCells = 25;
   let targetLetters = [];
 
@@ -301,7 +326,6 @@
   let crossed = [];
   let gameStarted = false;
 
-  // Manual fill mode variables
   let isManualMode = false;
   let nextManualNumber = 1;
 
@@ -314,23 +338,37 @@
   const emojiBar = document.getElementById('emoji-bar');
   const lobbyStatus = document.getElementById('lobby-status');
   const trackerBar = document.getElementById('tracker-bar');
+  const targetLinesSelect = document.getElementById('target-lines-select');
 
-  // --- HAPTIC FEEDBACK HELPER ---
-  function vibrate(pattern) {
-    if (navigator.vibrate) {
-      navigator.vibrate(pattern);
+  function updateLinesDropdown() {
+    const size = parseInt(document.getElementById('grid-size-select').value, 10);
+    targetLinesSelect.innerHTML = '';
+    const maxPossibleLines = (size * 2) + 2; // rows + cols + 2 diagonals
+    for (let i = 1; i <= Math.min(maxPossibleLines, 10); i++) {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.innerText = `${i} Line${i > 1 ? 's' : ''}${i === size ? ' (Standard)' : ''}`;
+      if (i === size) opt.selected = true;
+      targetLinesSelect.appendChild(opt);
     }
+  }
+  updateLinesDropdown();
+
+  function vibrate(pattern) {
+    if (navigator.vibrate) navigator.vibrate(pattern);
   }
 
   function getCleanId(pin) {
-    return 'bg-room-dyn-' + pin.trim().toUpperCase();
+    return 'bg-room-v3-' + pin.trim().toUpperCase();
   }
 
-  function setupLetterGoals(size) {
+  function setupLetterGoals(size, linesRequired) {
     gridSize = size;
+    targetLinesToWin = linesRequired;
     totalCells = size * size;
-    const alphabet = "BINGOEXCEL";
-    targetLetters = alphabet.slice(0, size).split('');
+    
+    const alphabet = "BINGOEXCELVICTORY";
+    targetLetters = alphabet.slice(0, targetLinesToWin).split('');
     
     trackerBar.innerHTML = '';
     targetLetters.forEach((char, i) => {
@@ -342,25 +380,26 @@
     });
 
     document.getElementById('display-size').innerText = `${size}×${size}`;
+    document.getElementById('display-target').innerText = `${targetLinesToWin} Line${targetLinesToWin > 1 ? 's' : ''}`;
     grid = Array(totalCells).fill(0);
     crossed = Array(totalCells).fill(false);
   }
 
-  // --- HOST ---
   function initHost() {
     myName = document.getElementById('player-name').value.trim() || 'Host';
     roomCode = document.getElementById('room-pin').value.trim().toUpperCase();
     const chosenSize = parseInt(document.getElementById('grid-size-select').value, 10);
+    const chosenLines = parseInt(document.getElementById('target-lines-select').value, 10);
     if (!roomCode) return alert('Enter a 4-digit code first!');
 
-    lobbyStatus.innerText = "Creating room on network...";
+    lobbyStatus.innerText = "Creating room...";
     lobbyStatus.style.color = "#38bdf8";
 
     peer = new Peer(getCleanId(roomCode), peerConfig);
 
     peer.on('open', () => {
       isHost = true;
-      setupLetterGoals(chosenSize);
+      setupLetterGoals(chosenSize, chosenLines);
       showGameUI();
       players.push({ id: peer.id, name: myName, ready: false, lines: 0, wins: 0 });
       renderPlayers();
@@ -368,6 +407,9 @@
 
     peer.on('connection', (conn) => {
       connections.push(conn);
+      conn.on('open', () => {
+        conn.send({ type: 'init_config', gridSize, targetLinesToWin });
+      });
       conn.on('data', (data) => handleHostIncomingData(conn, data));
       conn.on('close', () => {
         connections = connections.filter(c => c !== conn);
@@ -378,16 +420,11 @@
     });
 
     peer.on('error', (err) => {
-      if (err.type === 'unavailable-id') {
-        lobbyStatus.innerText = "Code '" + roomCode + "' is busy. Try another 4-digit code!";
-      } else {
-        lobbyStatus.innerText = "Error: " + err.type;
-      }
+      lobbyStatus.innerText = err.type === 'unavailable-id' ? "Code '" + roomCode + "' is busy. Try another code!" : "Error: " + err.type;
       lobbyStatus.style.color = "#ef4444";
     });
   }
 
-  // --- JOIN ---
   function initJoin() {
     myName = document.getElementById('player-name').value.trim() || 'Guest';
     roomCode = document.getElementById('room-pin').value.trim().toUpperCase();
@@ -431,7 +468,6 @@
   function handleHostIncomingData(conn, data) {
     if (data.type === 'join') {
       players.push({ id: conn.peer, name: data.name, ready: false, lines: 0, wins: 0 });
-      conn.send({ type: 'init_config', gridSize });
       broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
       renderPlayers();
     } else if (data.type === 'ready') {
@@ -456,7 +492,7 @@
       gameStarted = false;
       const p = players.find(x => x.id === conn.peer);
       if (p) {
-        p.lines = gridSize;
+        p.lines = targetLinesToWin;
         p.wins = (p.wins || 0) + 1;
       }
       broadcast({ type: 'win', winner: data.name, players });
@@ -472,7 +508,7 @@
 
   function handleClientIncomingData(data) {
     if (data.type === 'init_config') {
-      setupLetterGoals(data.gridSize);
+      setupLetterGoals(data.gridSize, data.targetLinesToWin);
       showGameUI();
     } else if (data.type === 'sync_players') {
       players = data.players;
@@ -507,7 +543,6 @@
     }
   }
 
-  // --- MANUAL FILL LOGIC ---
   function startManualFill() {
     if (gameStarted) return;
     isManualMode = true;
@@ -536,7 +571,6 @@
     }
   }
 
-  // --- EMOJI REACTION SYSTEM ---
   function sendEmoji(emoji) {
     showFloatingEmoji(emoji);
     vibrate(20);
@@ -568,7 +602,7 @@
         statusText = p.ready ? '✅ Ready' : '⏳ Waiting';
       } else {
         const achieved = targetLetters.slice(0, p.lines).join('');
-        statusText = achieved ? `[${achieved}] (${p.lines}/${gridSize})` : `0/${gridSize}`;
+        statusText = achieved ? `[${achieved}] (${p.lines}/${targetLinesToWin})` : `0/${targetLinesToWin}`;
       }
 
       row.innerHTML = `
@@ -673,7 +707,6 @@
   function checkBingo() {
     let lines = 0;
 
-    // Check Rows
     for (let r = 0; r < gridSize; r++) {
       let fullRow = true;
       for (let c = 0; c < gridSize; c++) {
@@ -682,7 +715,6 @@
       if (fullRow) lines++;
     }
 
-    // Check Columns
     for (let c = 0; c < gridSize; c++) {
       let fullCol = true;
       for (let r = 0; r < gridSize; r++) {
@@ -691,24 +723,21 @@
       if (fullCol) lines++;
     }
 
-    // Main Diagonal
     let diag1 = true;
     for (let i = 0; i < gridSize; i++) {
       if (!crossed[i * gridSize + i]) { diag1 = false; break; }
     }
     if (diag1) lines++;
 
-    // Anti Diagonal
     let diag2 = true;
     for (let i = 0; i < gridSize; i++) {
       if (!crossed[i * gridSize + (gridSize - 1 - i)]) { diag2 = false; break; }
     }
     if (diag2) lines++;
 
-    lines = Math.min(lines, gridSize);
+    lines = Math.min(lines, targetLinesToWin);
 
-    // Update Target Letters
-    for (let i = 0; i < gridSize; i++) {
+    for (let i = 0; i < targetLinesToWin; i++) {
       const el = document.getElementById(`let-${i}`);
       if (el) {
         if (i < lines) el.classList.add('active');
@@ -716,7 +745,6 @@
       }
     }
 
-    // Sync score
     if (isHost) {
       const p = players.find(x => x.id === peer.id);
       if (p && p.lines !== lines) {
@@ -728,8 +756,7 @@
       hostConn.send({ type: 'score_update', lines });
     }
 
-    // Check Win
-    if (lines >= gridSize && gameStarted) {
+    if (lines >= targetLinesToWin && gameStarted) {
       gameStarted = false;
       if (isHost) {
         const p = players.find(x => x.id === peer.id);
@@ -762,7 +789,7 @@
 
   function handleLocalReset() {
     crossed = Array(totalCells).fill(false);
-    for (let i = 0; i < gridSize; i++) {
+    for (let i = 0; i < targetLinesToWin; i++) {
       const el = document.getElementById(`let-${i}`);
       if (el) el.classList.remove('active');
     }
