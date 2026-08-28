@@ -251,184 +251,26 @@
     <div class="bingo-tracker" id="tracker-bar" style="margin-top: 8px;"></div>
 
     <div class="grid-container">
-      border: none;
-      padding: 12px 14px;
-      border-radius: 8px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      cursor: pointer;
-      width: 100%;
-      margin-top: 8px;
-    }
-    .btn-secondary { background: #475569; }
-    .btn-success { background: #10b981; }
-    .btn-danger { background: #ef4444; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    
-    .input-group { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
-    input {
-      width: 100%;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid #475569;
-      background: #0f172a;
-      color: white;
-      font-size: 1rem;
-      text-transform: uppercase;
-      font-weight: bold;
-      text-align: center;
-    }
-    .row { display: flex; gap: 8px; }
-    
-    .players-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: 8px;
-    }
-    .player-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: #334155;
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      font-weight: bold;
-      transition: all 0.2s ease;
-    }
-    .player-row.active-turn {
-      background: #f59e0b;
-      color: #000;
-    }
-    .player-meta {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .win-badge {
-      color: #facc15;
-      font-size: 0.85rem;
-    }
-    .player-row.active-turn .win-badge {
-      color: #78350f;
-    }
-    .score-badge {
-      background: rgba(0, 0, 0, 0.25);
-      padding: 3px 8px;
-      border-radius: 6px;
-      letter-spacing: 1px;
-    }
-
-    /* B-I-N-G-O letters */
-    .bingo-tracker {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
-    .letter {
-      width: 48px;
-      height: 42px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.3rem;
-      font-weight: 900;
-      border-radius: 8px;
-      background: #334155;
-      color: #64748b;
-      transition: all 0.3s ease;
-    }
-    .letter.active {
-      background: #f59e0b;
-      color: #000;
-      box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
-      transform: scale(1.05);
-    }
-
-    /* 5x5 Grid */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 6px;
-      aspect-ratio: 1;
-      width: 100%;
-    }
-    .cell {
-      background: #334155;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.2rem;
-      font-weight: bold;
-      cursor: pointer;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .cell.crossed {
-      background: #e11d48;
-      text-decoration: line-through;
-      opacity: 0.8;
-      cursor: not-allowed;
-    }
-    .turn-indicator {
-      text-align: center;
-      font-size: 1rem;
-      font-weight: bold;
-      padding: 10px;
-      border-radius: 6px;
-      background: #0f172a;
-      margin-top: 8px;
-    }
-  </style>
-</head>
-<body>
-
-<div class="container">
-  <h1>Multiplayer Bingo</h1>
-
-  <div class="panel" id="lobby-panel">
-    <div class="input-group">
-      <input type="text" id="player-name" placeholder="Your Nickname" maxlength="10" />
-      <input type="text" id="room-pin" placeholder="4-Digit Code (e.g. 7412)" maxlength="6" />
-      
-      <div class="row">
-        <button class="btn" id="btn-host" onclick="initHost()">Host Room</button>
-        <button class="btn btn-secondary" id="btn-join" onclick="initJoin()">Join Room</button>
-      </div>
+      <div class="grid" id="board"></div>
     </div>
-    <div id="lobby-status" style="margin-top: 12px; font-size: 0.85rem; text-align: center; color: #94a3b8;">
-      Player 1 taps <b>Host Room</b>.<br>Player 2 enters the code & taps <b>Join Room</b>.
-    </div>
-  </div>
-
-  <div class="panel" id="game-panel" style="display: none;">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-      <span style="font-size: 0.85rem; color: #94a3b8;">Room: <b id="display-room" style="color:#38bdf8;"></b></span>
-      <button class="btn btn-danger" style="width: auto; margin: 0; padding: 6px 12px; font-size: 0.75rem;" onclick="location.reload()">Exit</button>
-    </div>
-
-    <div class="players-list" id="players-box"></div>
-
-    <div class="bingo-tracker" style="margin-top: 12px;">
-      <div class="letter" id="let-0">B</div>
-      <div class="letter" id="let-1">I</div>
-      <div class="letter" id="let-2">N</div>
-      <div class="letter" id="let-3">G</div>
-      <div class="letter" id="let-4">O</div>
-    </div>
-
-    <div class="grid" id="board"></div>
 
     <div class="turn-indicator" id="turn-box">Set your board to begin</div>
     
     <div class="row" id="setup-buttons">
       <button class="btn btn-secondary" id="random-btn" onclick="randomizeBoard()">Shuffle</button>
+      <button class="btn btn-warning" id="manual-btn" onclick="startManualFill()">Manual Fill</button>
       <button class="btn btn-success" id="ready-btn" onclick="setReady()">Ready</button>
     </div>
 
-    <button class="btn btn-success" id="reset-btn" style="display: none; margin-top: 10px;" onclick="requestReset()">🔄 Play Again / Next Round</button>
+    <div class="emoji-bar" id="emoji-bar" style="display: none;">
+      <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
+      <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
+      <button class="emoji-btn" onclick="sendEmoji('🎯')">🎯</button>
+      <button class="emoji-btn" onclick="sendEmoji('😱')">😱</button>
+      <button class="emoji-btn" onclick="sendEmoji('👏')">👏</button>
+    </div>
+
+    <button class="btn btn-success" id="reset-btn" style="display: none; margin-top: 8px;" onclick="requestReset()">🔄 Play Again / Next Round</button>
   </div>
 </div>
 
@@ -449,13 +291,19 @@
   let connections = [];
   let hostConn = null;
   
+  let gridSize = 5;
+  let totalCells = 25;
+  let targetLetters = [];
+
   let players = [];
   let currentTurnIndex = 0;
-  let grid = Array(25).fill(0);
-  let crossed = Array(25).fill(false);
+  let grid = [];
+  let crossed = [];
   let gameStarted = false;
 
-  const BINGO_LETTERS = ['B', 'I', 'N', 'G', 'O'];
+  // Manual fill mode variables
+  let isManualMode = false;
+  let nextManualNumber = 1;
 
   const lobbyPanel = document.getElementById('lobby-panel');
   const gamePanel = document.getElementById('game-panel');
@@ -463,37 +311,56 @@
   const turnBox = document.getElementById('turn-box');
   const readyBtn = document.getElementById('ready-btn');
   const resetBtn = document.getElementById('reset-btn');
+  const emojiBar = document.getElementById('emoji-bar');
   const lobbyStatus = document.getElementById('lobby-status');
+  const trackerBar = document.getElementById('tracker-bar');
 
-  function getCleanId(pin) {
-    return 'bg26-' + pin.trim().toUpperCase();
+  // --- HAPTIC FEEDBACK HELPER ---
+  function vibrate(pattern) {
+    if (navigator.vibrate) {
+      navigator.vibrate(pattern);
+    }
   }
 
-  // Check if library loaded
-  window.addEventListener('DOMContentLoaded', () => {
-    if (typeof Peer === 'undefined') {
-      lobbyStatus.innerHTML = '<span style="color:#ef4444;">Connecting library error. Please refresh the page while connected to Internet.</span>';
-    }
-  });
+  function getCleanId(pin) {
+    return 'bg-room-dyn-' + pin.trim().toUpperCase();
+  }
+
+  function setupLetterGoals(size) {
+    gridSize = size;
+    totalCells = size * size;
+    const alphabet = "BINGOEXCEL";
+    targetLetters = alphabet.slice(0, size).split('');
+    
+    trackerBar.innerHTML = '';
+    targetLetters.forEach((char, i) => {
+      const el = document.createElement('div');
+      el.className = 'letter';
+      el.id = `let-${i}`;
+      el.innerText = char;
+      trackerBar.appendChild(el);
+    });
+
+    document.getElementById('display-size').innerText = `${size}×${size}`;
+    grid = Array(totalCells).fill(0);
+    crossed = Array(totalCells).fill(false);
+  }
 
   // --- HOST ---
   function initHost() {
     myName = document.getElementById('player-name').value.trim() || 'Host';
     roomCode = document.getElementById('room-pin').value.trim().toUpperCase();
+    const chosenSize = parseInt(document.getElementById('grid-size-select').value, 10);
     if (!roomCode) return alert('Enter a 4-digit code first!');
 
-    lobbyStatus.innerText = "Creating room...";
+    lobbyStatus.innerText = "Creating room on network...";
     lobbyStatus.style.color = "#38bdf8";
 
-    try {
-      peer = new Peer(getCleanId(roomCode), peerConfig);
-    } catch (e) {
-      alert("Error initializing room: " + e.message);
-      return;
-    }
+    peer = new Peer(getCleanId(roomCode), peerConfig);
 
     peer.on('open', () => {
       isHost = true;
+      setupLetterGoals(chosenSize);
       showGameUI();
       players.push({ id: peer.id, name: myName, ready: false, lines: 0, wins: 0 });
       renderPlayers();
@@ -512,7 +379,7 @@
 
     peer.on('error', (err) => {
       if (err.type === 'unavailable-id') {
-        lobbyStatus.innerText = "Code '" + roomCode + "' is busy. Try a different 4-digit number!";
+        lobbyStatus.innerText = "Code '" + roomCode + "' is busy. Try another 4-digit code!";
       } else {
         lobbyStatus.innerText = "Error: " + err.type;
       }
@@ -529,28 +396,22 @@
     lobbyStatus.innerText = "Connecting to Host...";
     lobbyStatus.style.color = "#38bdf8";
 
-    try {
-      peer = new Peer(peerConfig);
-    } catch (e) {
-      alert("Error initializing connection: " + e.message);
-      return;
-    }
+    peer = new Peer(peerConfig);
 
     peer.on('open', () => {
       hostConn = peer.connect(getCleanId(roomCode), { reliable: true });
       
       hostConn.on('open', () => {
         isHost = false;
-        showGameUI();
         hostConn.send({ type: 'join', name: myName });
       });
 
       hostConn.on('data', (data) => handleClientIncomingData(data));
-      hostConn.on('close', () => alert('Disconnected from room.'));
+      hostConn.on('close', () => alert('Disconnected from host.'));
     });
 
     peer.on('error', () => {
-      lobbyStatus.innerText = "Cannot find room. Ensure Host tapped Host Room first!";
+      lobbyStatus.innerText = "Cannot find room. Ensure Host created it first!";
       lobbyStatus.style.color = "#ef4444";
     });
   }
@@ -570,6 +431,7 @@
   function handleHostIncomingData(conn, data) {
     if (data.type === 'join') {
       players.push({ id: conn.peer, name: data.name, ready: false, lines: 0, wins: 0 });
+      conn.send({ type: 'init_config', gridSize });
       broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
       renderPlayers();
     } else if (data.type === 'ready') {
@@ -584,6 +446,7 @@
       broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
       renderPlayers();
     } else if (data.type === 'strike') {
+      vibrate(40);
       crossNumber(data.num);
       currentTurnIndex = (currentTurnIndex + 1) % players.length;
       broadcast({ type: 'strike', num: data.num, currentTurnIndex });
@@ -593,19 +456,25 @@
       gameStarted = false;
       const p = players.find(x => x.id === conn.peer);
       if (p) {
-        p.lines = 5;
+        p.lines = gridSize;
         p.wins = (p.wins || 0) + 1;
       }
       broadcast({ type: 'win', winner: data.name, players });
       showWinner(data.name);
       renderPlayers();
+    } else if (data.type === 'emoji') {
+      showFloatingEmoji(data.emoji);
+      broadcast({ type: 'emoji', emoji: data.emoji });
     } else if (data.type === 'request_reset') {
       resetGameForAll();
     }
   }
 
   function handleClientIncomingData(data) {
-    if (data.type === 'sync_players') {
+    if (data.type === 'init_config') {
+      setupLetterGoals(data.gridSize);
+      showGameUI();
+    } else if (data.type === 'sync_players') {
       players = data.players;
       currentTurnIndex = data.currentTurnIndex;
       gameStarted = data.gameStarted;
@@ -615,10 +484,13 @@
       gameStarted = true;
       currentTurnIndex = data.currentTurnIndex;
       document.getElementById('setup-buttons').style.display = 'none';
+      emojiBar.style.display = 'flex';
       resetBtn.style.display = 'none';
       updateTurnUI();
       renderPlayers();
+      vibrate([50, 50, 50]);
     } else if (data.type === 'strike') {
+      vibrate(40);
       crossNumber(data.num);
       currentTurnIndex = data.currentTurnIndex;
       updateTurnUI();
@@ -628,9 +500,60 @@
       players = data.players;
       showWinner(data.winner);
       renderPlayers();
+    } else if (data.type === 'emoji') {
+      showFloatingEmoji(data.emoji);
     } else if (data.type === 'reset') {
       handleLocalReset();
     }
+  }
+
+  // --- MANUAL FILL LOGIC ---
+  function startManualFill() {
+    if (gameStarted) return;
+    isManualMode = true;
+    nextManualNumber = 1;
+    grid = Array(totalCells).fill(0);
+    renderBoard();
+    turnBox.innerText = `Tap cell to place: ${nextManualNumber} of ${totalCells}`;
+    turnBox.style.color = "#f59e0b";
+    vibrate(30);
+  }
+
+  function handleManualCellClick(idx) {
+    if (grid[idx] !== 0) return;
+    grid[idx] = nextManualNumber;
+    vibrate(25);
+    nextManualNumber++;
+    renderBoard();
+
+    if (nextManualNumber > totalCells) {
+      isManualMode = false;
+      turnBox.innerText = "Board filled! Press Ready.";
+      turnBox.style.color = "#10b981";
+      vibrate([40, 60, 40]);
+    } else {
+      turnBox.innerText = `Tap cell to place: ${nextManualNumber} of ${totalCells}`;
+    }
+  }
+
+  // --- EMOJI REACTION SYSTEM ---
+  function sendEmoji(emoji) {
+    showFloatingEmoji(emoji);
+    vibrate(20);
+    if (isHost) {
+      broadcast({ type: 'emoji', emoji });
+    } else if (hostConn && hostConn.open) {
+      hostConn.send({ type: 'emoji', emoji });
+    }
+  }
+
+  function showFloatingEmoji(emoji) {
+    const el = document.createElement('div');
+    el.className = 'floating-reaction';
+    el.innerText = emoji;
+    el.style.setProperty('--rand-x', (Math.random() - 0.5) * 2);
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1800);
   }
 
   function renderPlayers() {
@@ -644,8 +567,8 @@
       if (!gameStarted) {
         statusText = p.ready ? '✅ Ready' : '⏳ Waiting';
       } else {
-        const achieved = BINGO_LETTERS.slice(0, p.lines).join('');
-        statusText = achieved ? `[${achieved}] (${p.lines}/5)` : '0/5';
+        const achieved = targetLetters.slice(0, p.lines).join('');
+        statusText = achieved ? `[${achieved}] (${p.lines}/${gridSize})` : `0/${gridSize}`;
       }
 
       row.innerHTML = `
@@ -660,8 +583,13 @@
   }
 
   function setReady() {
+    if (grid.includes(0)) {
+      alert(`Please fill all numbers 1 to ${totalCells} before pressing Ready!`);
+      return;
+    }
     readyBtn.disabled = true;
     readyBtn.innerText = "Waiting...";
+    vibrate(40);
     if (isHost) {
       const p = players.find(x => x.id === peer.id);
       if (p) p.ready = true;
@@ -678,10 +606,12 @@
       gameStarted = true;
       currentTurnIndex = 0;
       document.getElementById('setup-buttons').style.display = 'none';
+      emojiBar.style.display = 'flex';
       resetBtn.style.display = 'none';
       broadcast({ type: 'start', currentTurnIndex });
       updateTurnUI();
       renderPlayers();
+      vibrate([50, 50, 50]);
     }
   }
 
@@ -700,11 +630,17 @@
   }
 
   function handleCellClick(idx) {
+    if (isManualMode) {
+      handleManualCellClick(idx);
+      return;
+    }
     if (!gameStarted) return;
+
     const active = players[currentTurnIndex];
     const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
     if (!isMyTurn || crossed[idx]) return;
 
+    vibrate(40);
     const chosenNum = grid[idx];
     crossNumber(chosenNum);
 
@@ -728,30 +664,59 @@
   }
 
   function showWinner(winnerName) {
-    turnBox.innerText = `🎉 ${winnerName} got BINGO! 🎉`;
+    turnBox.innerText = `🎉 ${winnerName} won the Game! 🎉`;
     turnBox.style.color = "#10b981";
     resetBtn.style.display = 'block';
+    vibrate([100, 50, 100, 50, 300]);
   }
 
   function checkBingo() {
     let lines = 0;
-    for (let r = 0; r < 5; r++) {
-      if ([0,1,2,3,4].every(c => crossed[r * 5 + c])) lines++;
-    }
-    for (let c = 0; c < 5; c++) {
-      if ([0,1,2,3,4].every(r => crossed[r * 5 + c])) lines++;
-    }
-    if ([0,6,12,18,24].every(i => crossed[i])) lines++;
-    if ([4,8,12,16,20].every(i => crossed[i])) lines++;
 
-    lines = Math.min(lines, 5);
+    // Check Rows
+    for (let r = 0; r < gridSize; r++) {
+      let fullRow = true;
+      for (let c = 0; c < gridSize; c++) {
+        if (!crossed[r * gridSize + c]) { fullRow = false; break; }
+      }
+      if (fullRow) lines++;
+    }
 
-    for (let i = 0; i < 5; i++) {
+    // Check Columns
+    for (let c = 0; c < gridSize; c++) {
+      let fullCol = true;
+      for (let r = 0; r < gridSize; r++) {
+        if (!crossed[r * gridSize + c]) { fullCol = false; break; }
+      }
+      if (fullCol) lines++;
+    }
+
+    // Main Diagonal
+    let diag1 = true;
+    for (let i = 0; i < gridSize; i++) {
+      if (!crossed[i * gridSize + i]) { diag1 = false; break; }
+    }
+    if (diag1) lines++;
+
+    // Anti Diagonal
+    let diag2 = true;
+    for (let i = 0; i < gridSize; i++) {
+      if (!crossed[i * gridSize + (gridSize - 1 - i)]) { diag2 = false; break; }
+    }
+    if (diag2) lines++;
+
+    lines = Math.min(lines, gridSize);
+
+    // Update Target Letters
+    for (let i = 0; i < gridSize; i++) {
       const el = document.getElementById(`let-${i}`);
-      if (i < lines) el.classList.add('active');
-      else el.classList.remove('active');
+      if (el) {
+        if (i < lines) el.classList.add('active');
+        else el.classList.remove('active');
+      }
     }
 
+    // Sync score
     if (isHost) {
       const p = players.find(x => x.id === peer.id);
       if (p && p.lines !== lines) {
@@ -763,7 +728,8 @@
       hostConn.send({ type: 'score_update', lines });
     }
 
-    if (lines >= 5 && gameStarted) {
+    // Check Win
+    if (lines >= gridSize && gameStarted) {
       gameStarted = false;
       if (isHost) {
         const p = players.find(x => x.id === peer.id);
@@ -795,23 +761,32 @@
   }
 
   function handleLocalReset() {
-    crossed = Array(25).fill(false);
-    for (let i = 0; i < 5; i++) document.getElementById(`let-${i}`).classList.remove('active');
+    crossed = Array(totalCells).fill(false);
+    for (let i = 0; i < gridSize; i++) {
+      const el = document.getElementById(`let-${i}`);
+      if (el) el.classList.remove('active');
+    }
     randomizeBoard();
     document.getElementById('setup-buttons').style.display = 'flex';
+    emojiBar.style.display = 'none';
     readyBtn.disabled = false;
     readyBtn.innerText = "Ready";
     resetBtn.style.display = 'none';
-    turnBox.innerText = "Shuffle your board and press Ready!";
+    turnBox.innerText = "Shuffle or Manual Fill, then press Ready!";
     turnBox.style.color = "#f8fafc";
     renderPlayers();
   }
 
   function createBoard() {
     boardEl.innerHTML = '';
-    for (let i = 0; i < 25; i++) {
+    boardEl.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+    
+    const fontSize = gridSize <= 5 ? '1.1rem' : gridSize <= 7 ? '0.9rem' : '0.75rem';
+
+    for (let i = 0; i < totalCells; i++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
+      cell.style.fontSize = fontSize;
       cell.onclick = () => handleCellClick(i);
       boardEl.appendChild(cell);
     }
@@ -819,13 +794,17 @@
 
   function randomizeBoard() {
     if (gameStarted) return;
-    grid = Array.from({length: 25}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+    isManualMode = false;
+    grid = Array.from({length: totalCells}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
     renderBoard();
+    turnBox.innerText = "Board randomized. Press Ready!";
+    turnBox.style.color = "#f8fafc";
+    vibrate(20);
   }
 
   function renderBoard() {
     const cells = boardEl.children;
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < totalCells; i++) {
       cells[i].innerText = grid[i] || '';
       cells[i].className = 'cell' + (crossed[i] ? ' crossed' : '');
     }
