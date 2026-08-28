@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Bingo Multiplayer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 420px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .panel {
+      background: #1e293b;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+    }
+    h1 { text-align: center; color: #38bdf8; font-size: 1.5rem; margin-bottom: 4px; }
+    
+    .btn {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 8px;
+    }
+    .btn-secondary { background: #475569; }
+    .btn-success { background: #10b981; }
+    .btn-danger { background: #ef4444; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .input-group { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+    input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: white;
+      font-size: 1rem;
+      text-transform: uppercase;
+      font-weight: bold;
+      text-align: center;
+    }
+    .row { display: flex; gap: 8px; }
+    
+    .players-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .player-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #334155;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      transition: all 0.2s ease;
+    }
+    .player-row.active-turn {
+      background: #f59e0b;
+      color: #000;
+    }
+    .player-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .win-badge {
+      color: #facc15;
+      font-size: 0.85rem;
+    }
+    .player-row.active-turn .win-badge {
+      color: #78350f;
+    }
+    .score-badge {
+      background: rgba(0, 0, 0, 0.25);
+      padding: 3px 8px;
+      border-radius: 6px;
+      letter-spacing: 1px;
+    }
+
+    /* B-I-N-G-O letters */
+    .bingo-tracker {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .letter {
+      width: 48px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      font-weight: 900;
+      border-radius: 8px;
+      background: #334155;
+      color: #64748b;
+      transition: all 0.3s ease;
+    }
+    .letter.active {
+      background: #f59e0b;
+      color: #000;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
+      transform: scale(1.05);
+    }
+
+    /* 5x5 Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      aspect-ratio: 1;
+      width: 100%;
+    }
+    .cell {
+      background: #334155;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .cell.crossed {
+      background: #e11d48;
+      text-decoration: line-through;
+      opacity: 0.8;
+      cursor: not-allowed;
+    }
+    .turn-indicator {
+      text-align: center;
+      font-size: 1rem;
+      font-weight: bold;
+      padding: 10px;
+      border-radius: 6px;
+      background: #0f172a;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Multiplayer Bingo</h1>
+
+  <div class="panel" id="lobby-panel">
+    <div class="input-group">
+      <input type="text" id="player-name" placeholder="Your Nickname" maxlength="10" />
+      <input type="text" id="room-pin" placeholder="4-Digit Code (e.g. 7412)" maxlength="6" />
+      
+      <div class="row">
+        <button class="btn" id="btn-host" onclick="initHost()">Host Room</button>
+        <button class="btn btn-secondary" id="btn-join" onclick="initJoin()">Join Room</button>
+      </div>
+    </div>
+    <div id="lobby-status" style="margin-top: 12px; font-size: 0.85rem; text-align: center; color: #94a3b8;">
+      Player 1 taps <b>Host Room</b>.<br>Player 2 enters the code & taps <b>Join Room</b>.
+    </div>
+  </div>
+
+  <div class="panel" id="game-panel" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-size: 0.85rem; color: #94a3b8;">Room: <b id="display-room" style="color:#38bdf8;"></b></span>
+      <button class="btn btn-danger" style="width: auto; margin: 0; padding: 6px 12px; font-size: 0.75rem;" onclick="location.reload()">Exit</button>
+    </div>
+
+    <div class="players-list" id="players-box"></div>
+
+    <div class="bingo-tracker" style="margin-top: 12px;">
+      <div class="letter" id="let-0">B</div>
+      <div class="letter" id="let-1">I</div>
+      <div class="letter" id="let-2">N</div>
+      <div class="letter" id="let-3">G</div>
+      <div class="letter" id="let-4">O</div>
+    </div>
+
+    <div class="grid" id="board"></div>
+
+    <div class="turn-indicator" id="turn-box">Set your board to begin</div>
+    
+    <div class="row" id="setup-buttons">
+      <button class="btn btn-secondary" id="random-btn" onclick="randomizeBoard()">Shuffle</button>
+      <button class="btn btn-success" id="ready-btn" onclick="setReady()">Ready</button>
+    </div>
+
+    <button class="btn btn-success" id="reset-btn" style="display: none; margin-top: 10px;" onclick="requestReset()">🔄 Play Again / Next Round</button>
+  </div>
+</div>
+
+<script>
+  const peerConfig = {
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    }
+  };
+
+  let peer = null;
+  let isHost = false;
+  let myName = "Player";
+  let roomCode = "";
+  let connections = [];
+  let hostConn = null;
+  
+  let players = [];
+  let currentTurnIndex = 0;
+  let grid = Array(25).fill(0);
+  let crossed = Array(25).fill(false);
+  let gameStarted = false;
+
+  const BINGO_LETTERS = ['B', 'I', 'N', 'G', 'O'];
+
+  const lobbyPanel = document.getElementById('lobby-panel');
+  const gamePanel = document.getElementById('game-panel');
+  const boardEl = document.getElementById('board');
+  const turnBox = document.getElementById('turn-box');
+  const readyBtn = document.getElementById('ready-btn');
+  const resetBtn = document.getElementById('reset-btn');
+  const lobbyStatus = document.getElementById('lobby-status');
+
+  function getCleanId(pin) {
+    return 'bg26-' + pin.trim().toUpperCase();
+  }
+
+  // Check if library loaded
+  window.addEventListener('DOMContentLoaded', () => {
+    if (typeof Peer === 'undefined') {
+      lobbyStatus.innerHTML = '<span style="color:#ef4444;">Connecting library error. Please refresh the page while connected to Internet.</span>';
+    }
+  });
+
+  // --- HOST ---
+  function initHost() {
+    myName = document.getElementById('player-name').value.trim() || 'Host';
+    roomCode = document.getElementById('room-pin').value.trim().toUpperCase();
+    if (!roomCode) return alert('Enter a 4-digit code first!');
+
+    lobbyStatus.innerText = "Creating room...";
+    lobbyStatus.style.color = "#38bdf8";
+
+    try {
+      peer = new Peer(getCleanId(roomCode), peerConfig);
+    } catch (e) {
+      alert("Error initializing room: " + e.message);
+      return;
+    }
+
+    peer.on('open', () => {
+      isHost = true;
+      showGameUI();
+      players.push({ id: peer.id, name: myName, ready: false, lines: 0, wins: 0 });
+      renderPlayers();
+    });
+
+    peer.on('connection', (conn) => {
+      connections.push(conn);
+      conn.on('data', (data) => handleHostIncomingData(conn, data));
+      conn.on('close', () => {
+        connections = connections.filter(c => c !== conn);
+        players = players.filter(p => p.id !== conn.peer);
+        broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+        renderPlayers();
+      });
+    });
+
+    peer.on('error', (err) => {
+      if (err.type === 'unavailable-id') {
+        lobbyStatus.innerText = "Code '" + roomCode + "' is busy. Try a different 4-digit number!";
+      } else {
+        lobbyStatus.innerText = "Error: " + err.type;
+      }
+      lobbyStatus.style.color = "#ef4444";
+    });
+  }
+
+  // --- JOIN ---
+  function initJoin() {
+    myName = document.getElementById('player-name').value.trim() || 'Guest';
+    roomCode = document.getElementById('room-pin').value.trim().toUpperCase();
+    if (!roomCode) return alert('Enter the Host\'s 4-digit code first!');
+
+    lobbyStatus.innerText = "Connecting to Host...";
+    lobbyStatus.style.color = "#38bdf8";
+
+    try {
+      peer = new Peer(peerConfig);
+    } catch (e) {
+      alert("Error initializing connection: " + e.message);
+      return;
+    }
+
+    peer.on('open', () => {
+      hostConn = peer.connect(getCleanId(roomCode), { reliable: true });
+      
+      hostConn.on('open', () => {
+        isHost = false;
+        showGameUI();
+        hostConn.send({ type: 'join', name: myName });
+      });
+
+      hostConn.on('data', (data) => handleClientIncomingData(data));
+      hostConn.on('close', () => alert('Disconnected from room.'));
+    });
+
+    peer.on('error', () => {
+      lobbyStatus.innerText = "Cannot find room. Ensure Host tapped Host Room first!";
+      lobbyStatus.style.color = "#ef4444";
+    });
+  }
+
+  function showGameUI() {
+    lobbyPanel.style.display = 'none';
+    gamePanel.style.display = 'block';
+    document.getElementById('display-room').innerText = roomCode;
+    createBoard();
+    randomizeBoard();
+  }
+
+  function broadcast(msg) {
+    connections.forEach(c => { if(c.open) c.send(msg); });
+  }
+
+  function handleHostIncomingData(conn, data) {
+    if (data.type === 'join') {
+      players.push({ id: conn.peer, name: data.name, ready: false, lines: 0, wins: 0 });
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+      renderPlayers();
+    } else if (data.type === 'ready') {
+      const p = players.find(x => x.id === conn.peer);
+      if (p) p.ready = true;
+      checkAllReady();
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+      renderPlayers();
+    } else if (data.type === 'score_update') {
+      const p = players.find(x => x.id === conn.peer);
+      if (p) p.lines = data.lines;
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+      renderPlayers();
+    } else if (data.type === 'strike') {
+      crossNumber(data.num);
+      currentTurnIndex = (currentTurnIndex + 1) % players.length;
+      broadcast({ type: 'strike', num: data.num, currentTurnIndex });
+      updateTurnUI();
+      renderPlayers();
+    } else if (data.type === 'win') {
+      gameStarted = false;
+      const p = players.find(x => x.id === conn.peer);
+      if (p) {
+        p.lines = 5;
+        p.wins = (p.wins || 0) + 1;
+      }
+      broadcast({ type: 'win', winner: data.name, players });
+      showWinner(data.name);
+      renderPlayers();
+    } else if (data.type === 'request_reset') {
+      resetGameForAll();
+    }
+  }
+
+  function handleClientIncomingData(data) {
+    if (data.type === 'sync_players') {
+      players = data.players;
+      currentTurnIndex = data.currentTurnIndex;
+      gameStarted = data.gameStarted;
+      renderPlayers();
+      if (gameStarted) updateTurnUI();
+    } else if (data.type === 'start') {
+      gameStarted = true;
+      currentTurnIndex = data.currentTurnIndex;
+      document.getElementById('setup-buttons').style.display = 'none';
+      resetBtn.style.display = 'none';
+      updateTurnUI();
+      renderPlayers();
+    } else if (data.type === 'strike') {
+      crossNumber(data.num);
+      currentTurnIndex = data.currentTurnIndex;
+      updateTurnUI();
+      renderPlayers();
+    } else if (data.type === 'win') {
+      gameStarted = false;
+      players = data.players;
+      showWinner(data.winner);
+      renderPlayers();
+    } else if (data.type === 'reset') {
+      handleLocalReset();
+    }
+  }
+
+  function renderPlayers() {
+    const box = document.getElementById('players-box');
+    box.innerHTML = '';
+    players.forEach((p, idx) => {
+      const row = document.createElement('div');
+      row.className = 'player-row' + (gameStarted && idx === currentTurnIndex ? ' active-turn' : '');
+      
+      let statusText = '';
+      if (!gameStarted) {
+        statusText = p.ready ? '✅ Ready' : '⏳ Waiting';
+      } else {
+        const achieved = BINGO_LETTERS.slice(0, p.lines).join('');
+        statusText = achieved ? `[${achieved}] (${p.lines}/5)` : '0/5';
+      }
+
+      row.innerHTML = `
+        <div class="player-meta">
+          <span>${p.name}</span>
+          <span class="win-badge">🏆 ${p.wins || 0}</span>
+        </div>
+        <span class="score-badge">${statusText}</span>
+      `;
+      box.appendChild(row);
+    });
+  }
+
+  function setReady() {
+    readyBtn.disabled = true;
+    readyBtn.innerText = "Waiting...";
+    if (isHost) {
+      const p = players.find(x => x.id === peer.id);
+      if (p) p.ready = true;
+      renderPlayers();
+      checkAllReady();
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+    } else {
+      hostConn.send({ type: 'ready' });
+    }
+  }
+
+  function checkAllReady() {
+    if (players.length >= 2 && players.every(p => p.ready)) {
+      gameStarted = true;
+      currentTurnIndex = 0;
+      document.getElementById('setup-buttons').style.display = 'none';
+      resetBtn.style.display = 'none';
+      broadcast({ type: 'start', currentTurnIndex });
+      updateTurnUI();
+      renderPlayers();
+    }
+  }
+
+  function updateTurnUI() {
+    const active = players[currentTurnIndex];
+    if (!active) return;
+    const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
+
+    if (isMyTurn) {
+      turnBox.innerText = "👉 Your Turn! Pick a number.";
+      turnBox.style.color = "#38bdf8";
+    } else {
+      turnBox.innerText = `Waiting for ${active.name}...`;
+      turnBox.style.color = "#94a3b8";
+    }
+  }
+
+  function handleCellClick(idx) {
+    if (!gameStarted) return;
+    const active = players[currentTurnIndex];
+    const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
+    if (!isMyTurn || crossed[idx]) return;
+
+    const chosenNum = grid[idx];
+    crossNumber(chosenNum);
+
+    if (isHost) {
+      currentTurnIndex = (currentTurnIndex + 1) % players.length;
+      broadcast({ type: 'strike', num: chosenNum, currentTurnIndex });
+      updateTurnUI();
+      renderPlayers();
+    } else {
+      hostConn.send({ type: 'strike', num: chosenNum });
+    }
+  }
+
+  function crossNumber(num) {
+    const idx = grid.indexOf(num);
+    if (idx !== -1) {
+      crossed[idx] = true;
+      renderBoard();
+      checkBingo();
+    }
+  }
+
+  function showWinner(winnerName) {
+    turnBox.innerText = `🎉 ${winnerName} got BINGO! 🎉`;
+    turnBox.style.color = "#10b981";
+    resetBtn.style.display = 'block';
+  }
+
+  function checkBingo() {
+    let lines = 0;
+    for (let r = 0; r < 5; r++) {
+      if ([0,1,2,3,4].every(c => crossed[r * 5 + c])) lines++;
+    }
+    for (let c = 0; c < 5; c++) {
+      if ([0,1,2,3,4].every(r => crossed[r * 5 + c])) lines++;
+    }
+    if ([0,6,12,18,24].every(i => crossed[i])) lines++;
+    if ([4,8,12,16,20].every(i => crossed[i])) lines++;
+
+    lines = Math.min(lines, 5);
+
+    for (let i = 0; i < 5; i++) {
+      const el = document.getElementById(`let-${i}`);
+      if (i < lines) el.classList.add('active');
+      else el.classList.remove('active');
+    }
+
+    if (isHost) {
+      const p = players.find(x => x.id === peer.id);
+      if (p && p.lines !== lines) {
+        p.lines = lines;
+        broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+        renderPlayers();
+      }
+    } else if (hostConn && hostConn.open) {
+      hostConn.send({ type: 'score_update', lines });
+    }
+
+    if (lines >= 5 && gameStarted) {
+      gameStarted = false;
+      if (isHost) {
+        const p = players.find(x => x.id === peer.id);
+        if (p) p.wins = (p.wins || 0) + 1;
+        broadcast({ type: 'win', winner: myName, players });
+      } else {
+        hostConn.send({ type: 'win', name: myName });
+      }
+      showWinner(myName);
+      renderPlayers();
+    }
+  }
+
+  function requestReset() {
+    if (isHost) resetGameForAll();
+    else hostConn.send({ type: 'request_reset' });
+  }
+
+  function resetGameForAll() {
+    players.forEach(p => { 
+      p.ready = false; 
+      p.lines = 0; 
+    });
+    gameStarted = false;
+    currentTurnIndex = 0;
+    broadcast({ type: 'reset' });
+    broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+    handleLocalReset();
+  }
+
+  function handleLocalReset() {
+    crossed = Array(25).fill(false);
+    for (let i = 0; i < 5; i++) document.getElementById(`let-${i}`).classList.remove('active');
+    randomizeBoard();
+    document.getElementById('setup-buttons').style.display = 'flex';
+    readyBtn.disabled = false;
+    readyBtn.innerText = "Ready";
+    resetBtn.style.display = 'none';
+    turnBox.innerText = "Shuffle your board and press Ready!";
+    turnBox.style.color = "#f8fafc";
+    renderPlayers();
+  }
+
+  function createBoard() {
+    boardEl.innerHTML = '';
+    for (let i = 0; i < 25; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.onclick = () => handleCellClick(i);
+      boardEl.appendChild(cell);
+    }
+  }
+
+  function randomizeBoard() {
+    if (gameStarted) return;
+    grid = Array.from({length: 25}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+    renderBoard();
+  }
+
+  function renderBoard() {
+    const cells = boardEl.children;
+    for (let i = 0; i < 25; i++) {
+      cells[i].innerText = grid[i] || '';
+      cells[i].className = 'cell' + (crossed[i] ? ' crossed' : '');
+    }
+  }
+</script>
+</body>
+</html>
