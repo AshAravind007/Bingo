@@ -3,14 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Multiplayer Bingo v3.1</title>
+  <title>Multiplayer Bingo v3.2</title>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   
   <style>
-    /* Default: Marina Gaana Theme */
     :root {
       --bg: #1e1b18;
       --card-bg: #2d2620;
@@ -103,7 +102,6 @@
       transition: all 0.3s ease;
     }
 
-    /* Heartbeat Drama Animation */
     body.near-win-drama {
       animation: heartbeat 1.2s infinite;
     }
@@ -200,7 +198,7 @@
 
     .row { display: flex; gap: 6px; }
 
-    /* Power-Up Grid Selection */
+    /* Power-Up Grid */
     .power-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -217,6 +215,7 @@
       font-size: 0.8rem;
       font-weight: bold;
       transition: all 0.2s;
+      position: relative;
     }
     .power-card.selected {
       border-color: var(--accent);
@@ -224,13 +223,25 @@
       color: #000;
       transform: scale(1.02);
     }
-    .power-card.disabled {
-      opacity: 0.4;
+    .power-card.claimed-by-other {
+      opacity: 0.5;
+      border-color: #ef4444;
       cursor: not-allowed;
+      background: #200d11;
+    }
+    .power-card.in-cooldown {
+      opacity: 0.35;
       border-color: #555;
+      cursor: not-allowed;
+      background: #111;
+    }
+    .claimed-tag {
+      font-size: 0.65rem;
+      color: #ef4444;
+      font-weight: 900;
+      margin-top: 3px;
     }
 
-    /* Active Power Trigger Button */
     .power-trigger-btn {
       background: linear-gradient(135deg, #f59e0b, #ef4444);
       color: #000;
@@ -245,31 +256,35 @@
       display: none;
     }
 
-    /* Walkie Talkie Voice Bar */
-    .walkie-bar {
+    /* Turn-Based Audio Controls */
+    .turn-voice-bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
       background: var(--spotlight-bg);
       border: 1px solid var(--border);
-      padding: 8px 12px;
+      padding: 6px 12px;
       border-radius: 8px;
       margin-top: 6px;
     }
-    .ptt-btn {
-      background: #dc2626;
+    .mic-switch-btn {
+      background: #475569;
       color: white;
       font-weight: 900;
-      padding: 6px 14px;
-      border-radius: 20px;
+      padding: 4px 12px;
+      border-radius: 16px;
       border: none;
+      font-size: 0.75rem;
       cursor: pointer;
-      user-select: none;
-      -webkit-user-select: none;
+      transition: all 0.2s;
     }
-    .ptt-btn.talking {
-      background: #16a34a;
-      box-shadow: 0 0 12px #22c55e;
+    .mic-switch-btn.active {
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981;
+    }
+    .mic-switch-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
     }
 
     .player-row {
@@ -288,7 +303,7 @@
       color: #000;
     }
 
-    /* Dynamic Grid */
+    /* Grid */
     .grid-container {
       width: 100%;
       aspect-ratio: 1;
@@ -390,7 +405,6 @@
       margin-top: 6px;
     }
 
-    /* Modal / QR Overlay */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -415,7 +429,6 @@
       gap: 12px;
     }
 
-    /* Floating Reactions */
     .emoji-bar {
       display: flex;
       justify-content: space-around;
@@ -445,7 +458,7 @@
 
 <div class="container">
   <div class="top-bar">
-    <h1>Multiplayer Bingo <span class="badge">v3.1</span></h1>
+    <h1>Multiplayer Bingo <span class="badge">v3.2</span></h1>
     <select class="theme-select" onchange="changeTheme(this.value)">
       <option value="default">🌴 Marina Gaana</option>
       <option value="superstar">🕶️ Superstar Cinema</option>
@@ -469,8 +482,8 @@
 
       <label>Power-Ups Mode</label>
       <select id="powerups-mode-select">
-        <option value="off" selected>⚪ OFF (Classic Vanilla Bingo)</option>
-        <option value="on">⚡ ON (Draft Powers Each Round)</option>
+        <option value="off">⚪ OFF (Classic Vanilla Bingo)</option>
+        <option value="on" selected>⚡ ON (Draft Unique Powers)</option>
       </select>
 
       <label>Grid Size</label>
@@ -513,15 +526,15 @@
       </div>
     </div>
 
-    <div class="walkie-bar">
-      <span style="font-size: 0.8rem;" id="voice-status">📻 Voice: Ready</span>
-      <button class="ptt-btn" id="ptt-button" onmousedown="startVoiceTransmission()" onmouseup="stopVoiceTransmission()" ontouchstart="startVoiceTransmission()" ontouchend="stopVoiceTransmission()">🎙️ HOLD TO TALK</button>
+    <div class="turn-voice-bar">
+      <span style="font-size: 0.8rem;" id="voice-status">🎙️ Mic: Locked (Wait for your turn)</span>
+      <button class="mic-switch-btn" id="mic-toggle-btn" disabled onclick="toggleTurnMicrophone()">🎙️ Mic OFF</button>
     </div>
 
     <div class="players-list" id="players-box"></div>
 
     <div id="power-draft-box" style="margin-top: 8px; display: none; background: var(--spotlight-bg); padding: 10px; border-radius: 8px;">
-      <div style="font-size: 0.85rem; font-weight: bold; text-align: center; margin-bottom: 6px;">⚡ Draft Your 1-Time Power-Up</div>
+      <div style="font-size: 0.85rem; font-weight: bold; text-align: center; margin-bottom: 6px;">⚡ Draft 1 Exclusive Power (1 Per Player)</div>
       <div class="power-grid" id="power-grid-options"></div>
     </div>
 
@@ -562,7 +575,7 @@
   <div class="modal-card" onclick="event.stopPropagation()">
     <h3 style="color: var(--accent);">Fast Join Room</h3>
     <div id="qrcode-container" style="background:white; padding:10px; border-radius:8px;"></div>
-    <p style="font-size: 0.8rem; color:#94a3b8;">Scan with phone camera or share room PIN: <b id="qr-room-text" style="color:var(--text);"></b></p>
+    <p style="font-size: 0.8rem; color:#94a3b8;">Scan or share room PIN: <b id="qr-room-text" style="color:var(--text);"></b></p>
     <button class="btn btn-secondary" onclick="copyJoinLink()">📋 Copy Direct Link</button>
     <button class="btn btn-danger" onclick="hideQRModal()">Close</button>
   </div>
@@ -577,7 +590,6 @@
 </div>
 
 <script>
-  // Web Audio Synth
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   function playSynth(freq, duration, type="sine") {
     try {
@@ -604,7 +616,7 @@
     }
   };
 
-  // State Variables
+  // Game State
   let peer = null;
   let isHost = false;
   let myName = "Player";
@@ -616,10 +628,11 @@
   let gridSize = 5;
   let targetLinesToWin = 5;
   let isBlindMode = false;
-  let isPowerUpsEnabled = false;
+  let isPowerUpsEnabled = true;
   let totalCells = 25;
   let targetLetters = [];
 
+  // player schema: [{ id, name, role, ready, lines, wins, power, cooldowns: { double: 0, freeze: 0, peek: 0, shield: 0 } }]
   let players = [];
   let currentTurnIndex = 0;
   let roundStarterIndex = 0;
@@ -631,14 +644,12 @@
   let isManualMode = false;
   let nextManualNumber = 1;
 
-  // Power-up state
   let mySelectedPower = null;
   let doubleStrikeRemaining = 0;
-
-  // Stats
   let roundStats = { callsCount: 0 };
 
-  // Voice WebRTC Stream
+  // Microphone state
+  let micActive = false;
   let localMediaStream = null;
 
   const POWER_LIST = [
@@ -651,16 +662,12 @@
   window.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomParam = urlParams.get('room');
-    if (roomParam) {
-      document.getElementById('room-pin').value = roomParam;
-    }
+    if (roomParam) document.getElementById('room-pin').value = roomParam;
   });
 
   function changeTheme(themeName) {
     document.body.className = '';
-    if (themeName !== 'default') {
-      document.body.classList.add('theme-' + themeName);
-    }
+    if (themeName !== 'default') document.body.classList.add('theme-' + themeName);
   }
 
   function updateLinesDropdown() {
@@ -679,7 +686,7 @@
   updateLinesDropdown();
 
   function getCleanId(pin) {
-    return 'bg-v31-' + pin.trim().toUpperCase();
+    return 'bg-v32-' + pin.trim().toUpperCase();
   }
 
   function setupLetterGoals(size, linesRequired, blind, powerups) {
@@ -711,7 +718,7 @@
     peekedIndices = [];
   }
 
-  // --- HOST INITIALIZATION ---
+  // --- HOST INIT ---
   function initHost() {
     myName = document.getElementById('player-name').value.trim() || 'Host';
     roomCode = document.getElementById('room-pin').value.trim().toUpperCase();
@@ -738,8 +745,7 @@
         lines: 0, 
         wins: 0, 
         power: null, 
-        consecutiveWins: 0, 
-        lastUsedPower: null 
+        cooldowns: { double: 0, freeze: 0, peek: 0, shield: 0 } 
       });
       renderPlayers();
       if (isPowerUpsEnabled) renderPowerDraftOptions();
@@ -765,6 +771,7 @@
         players = players.filter(p => p.id !== conn.peer);
         broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
         renderPlayers();
+        if (isPowerUpsEnabled) renderPowerDraftOptions();
       });
     });
 
@@ -778,7 +785,7 @@
     });
   }
 
-  // --- JOIN INITIALIZATION ---
+  // --- JOIN INIT ---
   function initJoin() {
     myName = document.getElementById('player-name').value.trim() || 'Guest';
     roomCode = document.getElementById('room-pin').value.trim().toUpperCase();
@@ -820,7 +827,7 @@
       document.getElementById('grid-wrapper').style.display = 'none';
       document.getElementById('setup-buttons').style.display = 'none';
       document.getElementById('power-draft-box').style.display = 'none';
-      document.getElementById('turn-box').innerText = "Spectator / Audience Mode Active 👁️";
+      document.getElementById('turn-box').innerText = "Spectator Mode Active 👁️";
     } else {
       createBoard();
       randomizeBoard();
@@ -834,44 +841,50 @@
     });
   }
 
-  // --- POWER-UP SELECTION ---
+  // --- POWER DRAFTING LOGIC (1 Player per Power + 3-Round Lockout) ---
   function renderPowerDraftOptions() {
     if (!isPowerUpsEnabled) return;
     const box = document.getElementById('power-grid-options');
     box.innerHTML = '';
     const myPlayer = players.find(p => (isHost && p.id === peer.id) || (!isHost && hostConn && p.id === peer.id));
 
-    const isLockedOut = myPlayer && myPlayer.consecutiveWins >= 2;
-
     POWER_LIST.forEach((pow) => {
       const card = document.createElement('div');
       card.className = 'power-card';
-      
-      const cannotReuse = myPlayer && myPlayer.lastUsedPower === pow.id;
-      if (isLockedOut || cannotReuse) {
-        card.classList.add('disabled');
-        card.title = isLockedOut ? "2-Win Streak Handicap: No Power!" : "Cannot use same power 2 games in a row!";
+
+      // Check if another player claimed this power
+      const claimedBy = players.find(p => p.power === pow.id && p.id !== (myPlayer ? myPlayer.id : null));
+      // Check if in 3-round cooldown for this player
+      const cooldownRoundsLeft = (myPlayer && myPlayer.cooldowns) ? (myPlayer.cooldowns[pow.id] || 0) : 0;
+
+      if (claimedBy) {
+        card.classList.add('claimed-by-other');
+        card.innerHTML = `<div>${pow.name}</div><div class="claimed-tag">🔒 Claimed by ${claimedBy.name}</div>`;
+      } else if (cooldownRoundsLeft > 0) {
+        card.classList.add('in-cooldown');
+        card.innerHTML = `<div>${pow.name}</div><div class="claimed-tag" style="color:#f59e0b;">⏳ Locked for ${cooldownRoundsLeft} round(s)</div>`;
       } else {
+        if (mySelectedPower === pow.id) card.classList.add('selected');
         card.onclick = () => selectPower(pow.id);
+        card.innerHTML = `<div>${pow.name}</div><div style="font-size:0.7rem; font-weight:normal; margin-top:2px;">${pow.desc}</div>`;
       }
 
-      if (mySelectedPower === pow.id) card.classList.add('selected');
-      card.innerHTML = `<div>${pow.name}</div><div style="font-size:0.7rem; font-weight:normal; margin-top:2px;">${pow.desc}</div>`;
       box.appendChild(card);
     });
   }
 
   function selectPower(powerId) {
     if (!isPowerUpsEnabled) return;
-    mySelectedPower = powerId;
-    renderPowerDraftOptions();
+    mySelectedPower = (mySelectedPower === powerId) ? null : powerId; // toggle
+    
     if (isHost) {
       const p = players.find(x => x.id === peer.id);
-      if (p) p.power = powerId;
+      if (p) p.power = mySelectedPower;
       broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
       renderPlayers();
+      renderPowerDraftOptions();
     } else if (hostConn && hostConn.open) {
-      hostConn.send({ type: 'set_power', power: powerId });
+      hostConn.send({ type: 'set_power', power: mySelectedPower });
     }
   }
 
@@ -893,15 +906,12 @@
 
     if (mySelectedPower === 'double') {
       doubleStrikeRemaining = 1;
-      alert("⚡ Double Strike Armed! Pick 2 numbers on your turn.");
+      alert("⚡ Double Strike Active: Select 2 numbers on your turn!");
     } else if (mySelectedPower === 'freeze') {
       sendGameAction({ type: 'trigger_freeze', from: myName });
     } else if (mySelectedPower === 'peek') {
-      if (isBlindMode) {
-        peekTwoHiddenTiles();
-      } else {
-        alert("Target peek is only active in Blind Mode!");
-      }
+      if (isBlindMode) peekTwoHiddenTiles();
+      else alert("Peek only works in Blind Mode!");
     }
     mySelectedPower = null;
     btn.style.display = 'none';
@@ -918,6 +928,50 @@
     }, 4000);
   }
 
+  // --- TURN-BASED MICROPHONE LOGIC ---
+  async function toggleTurnMicrophone() {
+    const micBtn = document.getElementById('mic-toggle-btn');
+    if (micActive) {
+      muteMicrophone();
+    } else {
+      try {
+        localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        micActive = true;
+        micBtn.classList.add('active');
+        micBtn.innerText = "🎙️ Mic ON (Live)";
+        document.getElementById('voice-status').innerText = "🎙️ You are speaking live!";
+
+        if (isHost) {
+          connections.forEach((conn, peerId) => {
+            peer.call(peerId, localMediaStream);
+          });
+        } else if (hostConn) {
+          peer.call(getCleanId(roomCode), localMediaStream);
+        }
+      } catch(e) {
+        alert("Microphone access blocked! Please enable permissions.");
+      }
+    }
+  }
+
+  function muteMicrophone() {
+    const micBtn = document.getElementById('mic-toggle-btn');
+    micActive = false;
+    micBtn.classList.remove('active');
+    micBtn.innerText = "🎙️ Mic OFF";
+    document.getElementById('voice-status').innerText = "🎙️ Mic: Locked (Wait for your turn)";
+    if (localMediaStream) {
+      localMediaStream.getTracks().forEach(track => track.stop());
+      localMediaStream = null;
+    }
+  }
+
+  function playIncomingAudioStream(stream) {
+    const audio = new Audio();
+    audio.srcObject = stream;
+    audio.play();
+  }
+
   // --- HOST INCOMING DATA ---
   function handleHostIncomingData(conn, data) {
     if (data.type === 'join') {
@@ -931,17 +985,22 @@
           lines: 0, 
           wins: 0, 
           power: null, 
-          consecutiveWins: 0, 
-          lastUsedPower: null 
+          cooldowns: { double: 0, freeze: 0, peek: 0, shield: 0 } 
         });
       }
       broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
       renderPlayers();
+      if (isPowerUpsEnabled) renderPowerDraftOptions();
     } else if (data.type === 'set_power') {
       const p = players.find(x => x.id === conn.peer);
-      if (p) p.power = data.power;
+      // Double check power is not already claimed
+      const isTaken = players.some(other => other.power === data.power && other.id !== conn.peer);
+      if (p && !isTaken) {
+        p.power = data.power;
+      }
       broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
       renderPlayers();
+      if (isPowerUpsEnabled) renderPowerDraftOptions();
     } else if (data.type === 'ready') {
       const p = players.find(x => x.id === conn.peer);
       if (p) p.ready = true;
@@ -980,6 +1039,7 @@
       currentTurnIndex = data.currentTurnIndex;
       gameStarted = data.gameStarted;
       renderPlayers();
+      if (isPowerUpsEnabled && !gameStarted) renderPowerDraftOptions();
       if (gameStarted) updateTurnUI();
     } else if (data.type === 'start') {
       gameStarted = true;
@@ -999,6 +1059,7 @@
       renderPlayers();
     } else if (data.type === 'win') {
       gameStarted = false;
+      muteMicrophone();
       showWinner(data.winner);
       displayStatsModal(data.stats);
     } else if (data.type === 'emoji') {
@@ -1047,42 +1108,6 @@
     else if (hostConn && hostConn.open) hostConn.send(msg);
   }
 
-  // --- WALKIE TALKIE (PUSH TO TALK) ---
-  async function startVoiceTransmission() {
-    try {
-      document.getElementById('ptt-button').classList.add('talking');
-      document.getElementById('voice-status').innerText = "📻 Transmitting...";
-      if (!localMediaStream) {
-        localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      }
-      if (isHost) {
-        connections.forEach((conn, peerId) => {
-          peer.call(peerId, localMediaStream);
-        });
-      } else if (hostConn) {
-        peer.call(getCleanId(roomCode), localMediaStream);
-      }
-    } catch(e) {
-      document.getElementById('voice-status').innerText = "Mic blocked!";
-    }
-  }
-
-  function stopVoiceTransmission() {
-    document.getElementById('ptt-button').classList.remove('talking');
-    document.getElementById('voice-status').innerText = "📻 Voice: Standby";
-    if (localMediaStream) {
-      localMediaStream.getTracks().forEach(track => track.stop());
-      localMediaStream = null;
-    }
-  }
-
-  function playIncomingAudioStream(stream) {
-    const audio = new Audio();
-    audio.srcObject = stream;
-    audio.play();
-  }
-
-  // --- RENDERING & UI ---
   function renderPlayers() {
     const box = document.getElementById('players-box');
     box.innerHTML = '';
@@ -1138,12 +1163,20 @@
     const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
 
     const turnBox = document.getElementById('turn-box');
+    const micBtn = document.getElementById('mic-toggle-btn');
+
     if (isMyTurn) {
       turnBox.innerText = doubleStrikeRemaining > 0 ? "⚡ Double Strike Turn! Pick 2nd number." : "👉 Your Turn! Pick a tile.";
       turnBox.style.color = "var(--accent)";
+      micBtn.disabled = false;
+      document.getElementById('voice-status').innerText = "🎙️ It's your turn! Switch Mic ON to speak.";
     } else {
       turnBox.innerText = `Waiting for ${active.name}...`;
       turnBox.style.color = "#94a3b8";
+      // Automatically mute and lock mic if turn ends
+      if (micActive) muteMicrophone();
+      micBtn.disabled = true;
+      document.getElementById('voice-status').innerText = `🎙️ Mic locked (Waiting for ${active.name})`;
     }
   }
 
@@ -1155,6 +1188,8 @@
     const active = activePlayers[currentTurnIndex];
     const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
     if (!isMyTurn || crossed[idx]) return;
+
+    if (micActive) muteMicrophone(); // auto mute when number is picked
 
     const chosenNum = grid[idx];
     sendGameAction({ type: 'strike', num: chosenNum, caller: myName });
@@ -1200,14 +1235,25 @@
 
   function handleWinnerFound(winnerName) {
     document.body.classList.remove('near-win-drama');
+    
+    // Apply cooldown decrements & 3-round lockouts
     players.forEach(p => {
       if (p.name === winnerName) {
         p.wins = (p.wins || 0) + 1;
-        p.consecutiveWins = (p.consecutiveWins || 0) + 1;
-      } else {
-        p.consecutiveWins = 0;
       }
-      p.lastUsedPower = p.power;
+      if (!p.cooldowns) p.cooldowns = { double: 0, freeze: 0, peek: 0, shield: 0 };
+      
+      // If player used a power this game, lock it for 3 rounds
+      if (p.power) {
+        p.cooldowns[p.power] = 3;
+      }
+      
+      // Decrement existing cooldowns
+      Object.keys(p.cooldowns).forEach(k => {
+        if (p.power !== k && p.cooldowns[k] > 0) {
+          p.cooldowns[k]--;
+        }
+      });
       p.power = null;
     });
 
@@ -1233,7 +1279,7 @@
       <div>👑 <b>Winner:</b> ${stats.winner}</div>
       <div>🔢 <b>Total Calls:</b> ${stats.totalNumbersCalled || 'N/A'}</div>
       <div>📐 <b>Grid Matrix:</b> ${stats.boardSize}</div>
-      <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">${isPowerUpsEnabled ? 'Draft your new Power-Up for the next round!' : 'Get ready for the next round!'}</div>
+      <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">${isPowerUpsEnabled ? 'Draft exclusive powers for the next round!' : 'Get ready for the next round!'}</div>
     `;
     document.getElementById('stats-modal').style.display = 'flex';
   }
@@ -1246,7 +1292,7 @@
   }
 
   function resetGameForAll() {
-    players.forEach(p => { p.ready = false; p.lines = 0; });
+    players.forEach(p => { p.ready = false; p.lines = 0; p.power = null; });
     gameStarted = false;
     roundStarterIndex = (roundStarterIndex + 1) % Math.max(1, players.filter(p=>p.role==='player').length);
     currentTurnIndex = roundStarterIndex;
@@ -1258,6 +1304,8 @@
 
   function handleLocalReset() {
     crossed = Array(totalCells).fill(false);
+    mySelectedPower = null;
+    muteMicrophone();
     document.getElementById('spotlight-bar').style.display = 'none';
     randomizeBoard();
     document.getElementById('setup-buttons').style.display = 'flex';
