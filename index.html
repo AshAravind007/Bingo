@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Multiplayer Bingo v2</title>
+  <title>Multiplayer Bingo v2.1</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <style>
@@ -338,7 +338,7 @@
   <div class="top-bar">
     <div class="title-row">
       <h1>Multiplayer Bingo</h1>
-      <span class="v2-badge">v2.0</span>
+      <span class="v2-badge">v2.1</span>
     </div>
     <button class="theme-toggle-btn" onclick="toggleTheme()" id="theme-btn">☀️ Light</button>
   </div>
@@ -460,7 +460,8 @@
     config: {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
       ]
     }
   };
@@ -469,7 +470,7 @@
   let isHost = false;
   let myName = "Player";
   let roomCode = "";
-  let connections = [];
+  let connections = new Map(); // Map peerId -> connection to prevent duplicate hanging sockets
   let hostConn = null;
   
   let gridSize = 5;
@@ -528,7 +529,7 @@
   }
 
   function getCleanId(pin) {
-    return 'bg-v2-' + pin.trim().toUpperCase();
+    return 'bg-v21-' + pin.trim().toUpperCase();
   }
 
   function setupLetterGoals(size, linesRequired) {
@@ -584,13 +585,28 @@
     });
 
     peer.on('connection', (conn) => {
-      connections.push(conn);
-      conn.on('open', () => {
-        conn.send({ type: 'init_config', gridSize, targetLinesToWin });
-      });
+      // Store and register connection
+      connections.set(conn.peer, conn);
+
+      const sendConfig = () => {
+        if (conn.open) {
+          conn.send({ 
+            type: 'init_config', 
+            gridSize, 
+            targetLinesToWin,
+            players,
+            currentTurnIndex,
+            gameStarted
+          });
+        }
+      };
+
+      if (conn.open) sendConfig();
+      else conn.on('open', sendConfig);
+
       conn.on('data', (data) => handleHostIncomingData(conn, data));
       conn.on('close', () => {
-        connections = connections.filter(c => c !== conn);
+        connections.delete(conn.peer);
         players = players.filter(p => p.id !== conn.peer);
         timerVotes.delete(conn.peer);
         checkTimerMajority();
@@ -642,7 +658,11 @@
   }
 
   function broadcast(msg) {
-    connections.forEach(c => { if(c.open) c.send(msg); });
+    connections.forEach((conn) => {
+      if (conn && conn.open) {
+        conn.send(msg);
+      }
+    });
   }
 
   function toggleTimerVote() {
@@ -650,7 +670,7 @@
       if (timerVotes.has(peer.id)) timerVotes.delete(peer.id);
       else timerVotes.add(peer.id);
       checkTimerMajority();
-    } else {
+    } else if (hostConn && hostConn.open) {
       hostConn.send({ type: 'toggle_timer_vote' });
     }
   }
@@ -697,7 +717,7 @@
 
   function autoPickNumberForCurrentPlayer() {
     const active = players[currentTurnIndex];
-    const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
+    const isMyTurn = (isHost && active && active.id === peer.id) || (!isHost && hostConn && active && active.id === peer.id);
 
     if (isMyTurn) {
       const availableUncrossedIndices = [];
@@ -713,7 +733,12 @@
 
   function handleHostIncomingData(conn, data) {
     if (data.type === 'join') {
-      players.push({ id: conn.peer, name: data.name, ready: false, lines: 0, wins: 0 });
+      const existing = players.find(p => p.id === conn.peer);
+      if (!existing) {
+        players.push({ id: conn.peer, name: data.name, ready: false, lines: 0, wins: 0 });
+      } else {
+        existing.name = data.name;
+      }
       broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
       renderPlayers();
       checkTimerMajority();
@@ -764,6 +789,7 @@
   function handleClientIncomingData(data) {
     if (data.type === 'init_config') {
       setupLetterGoals(data.gridSize, data.targetLinesToWin);
+      if (data.players) players = data.players;
       showGameUI();
     } else if (data.type === 'sync_players') {
       players = data.players;
@@ -901,7 +927,7 @@
       renderPlayers();
       checkAllReady();
       broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
-    } else {
+    } else if (hostConn && hostConn.open) {
       hostConn.send({ type: 'ready' });
     }
   }
@@ -958,7 +984,7 @@
       updateTurnUI();
       renderPlayers();
       if (timerActive) startTurnTimer();
-    } else {
+    } else if (hostConn && hostConn.open) {
       hostConn.send({ type: 'strike', num: chosenNum, caller: myName });
     }
   }
@@ -1041,7 +1067,7 @@
         const p = players.find(x => x.id === peer.id);
         if (p) p.wins = (p.wins || 0) + 1;
         broadcast({ type: 'win', winner: myName, players });
-      } else {
+      } else if (hostConn && hostConn.open) {
         hostConn.send({ type: 'win', name: myName });
       }
       showWinner(myName);
@@ -1051,7 +1077,7 @@
 
   function requestReset() {
     if (isHost) resetGameForAll();
-    else hostConn.send({ type: 'request_reset' });
+    else if (hostConn && hostConn.open) hostConn.send({ type: 'request_reset' });
   }
 
   function resetGameForAll() {
