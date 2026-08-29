@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Multiplayer Bingo v3.1</title>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
+  <style>
+    /* Default: Marina Gaana Theme */
+    :root {
+      --bg: #1e1b18;
+      --card-bg: #2d2620;
+      --text: #fef08a;
+      --accent: #f59e0b;
+      --cell-bg: #45372b;
+      --cell-text: #fffbeb;
+      --border: #78350f;
+      --crossed: #dc2626;
+      --btn: #d97706;
+      --spotlight-bg: #181411;
+    }
+
+    body.theme-superstar {
+      --bg: #0b132b;
+      --card-bg: #1c2541;
+      --text: #fde047;
+      --accent: #38bdf8;
+      --cell-bg: #3a506b;
+      --cell-text: #ffffff;
+      --border: #1e3a8a;
+      --crossed: #ef4444;
+      --btn: #0284c7;
+      --spotlight-bg: #070d1e;
+    }
+
+    body.theme-gulab {
+      --bg: #2b0914;
+      --card-bg: #4c1124;
+      --text: #fce7f3;
+      --accent: #fb7185;
+      --cell-bg: #701a35;
+      --cell-text: #ffffff;
+      --border: #9f1239;
+      --crossed: #e11d48;
+      --btn: #be123c;
+      --spotlight-bg: #1c050c;
+    }
+
+    body.theme-monsoon {
+      --bg: #062419;
+      --card-bg: #0e3d2b;
+      --text: #d1fae5;
+      --accent: #34d399;
+      --cell-bg: #15573d;
+      --cell-text: #ecfdf5;
+      --border: #065f46;
+      --crossed: #f87171;
+      --btn: #059669;
+      --spotlight-bg: #031710;
+    }
+
+    body.theme-tokyo {
+      --bg: #0d0221;
+      --card-bg: #19053b;
+      --text: #38bdf8;
+      --accent: #f43f5e;
+      --cell-bg: #260959;
+      --cell-text: #f0abfc;
+      --border: #4c1d95;
+      --crossed: #ec4899;
+      --btn: #9333ea;
+      --spotlight-bg: #080114;
+    }
+
+    body.theme-vegas {
+      --bg: #0a0a0a;
+      --card-bg: #171717;
+      --text: #fbbf24;
+      --accent: #f59e0b;
+      --cell-bg: #262626;
+      --cell-text: #fef3c7;
+      --border: #525252;
+      --crossed: #dc2626;
+      --btn: #b45309;
+      --spotlight-bg: #000000;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      min-height: 100vh;
+      overflow-x: hidden;
+      transition: all 0.3s ease;
+    }
+
+    /* Heartbeat Drama Animation */
+    body.near-win-drama {
+      animation: heartbeat 1.2s infinite;
+    }
+    @keyframes heartbeat {
+      0% { box-shadow: inset 0 0 20px #ef4444; }
+      50% { box-shadow: inset 0 0 60px #ef4444; background-color: #3b0707; }
+      100% { box-shadow: inset 0 0 20px #ef4444; }
+    }
+
+    .container {
+      max-width: 460px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .theme-select {
+      background: var(--cell-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      width: auto;
+    }
+
+    .panel {
+      background: var(--card-bg);
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    h1 {
+      color: var(--accent);
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge {
+      background: var(--accent);
+      color: #000;
+      font-size: 0.7rem;
+      font-weight: 900;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .btn {
+      background: var(--btn);
+      color: white;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-secondary { background: #475569; }
+    .btn-success { background: #10b981; }
+    .btn-danger { background: #ef4444; }
+    .btn-warning { background: #f59e0b; color: #000; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.95rem;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .row { display: flex; gap: 6px; }
+
+    /* Power-Up Grid Selection */
+    .power-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    .power-card {
+      background: var(--cell-bg);
+      border: 2px solid var(--border);
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      font-size: 0.8rem;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+    .power-card.selected {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #000;
+      transform: scale(1.02);
+    }
+    .power-card.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      border-color: #555;
+    }
+
+    /* Active Power Trigger Button */
+    .power-trigger-btn {
+      background: linear-gradient(135deg, #f59e0b, #ef4444);
+      color: #000;
+      font-weight: 900;
+      border: none;
+      padding: 8px;
+      border-radius: 8px;
+      margin-top: 6px;
+      width: 100%;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+      cursor: pointer;
+      display: none;
+    }
+
+    /* Walkie Talkie Voice Bar */
+    .walkie-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--spotlight-bg);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-top: 6px;
+    }
+    .ptt-btn {
+      background: #dc2626;
+      color: white;
+      font-weight: 900;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: none;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .ptt-btn.talking {
+      background: #16a34a;
+      box-shadow: 0 0 12px #22c55e;
+    }
+
+    .player-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--cell-bg);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      margin-top: 4px;
+    }
+    .player-row.active-turn {
+      background: var(--accent);
+      color: #000;
+    }
+
+    /* Dynamic Grid */
+    .grid-container {
+      width: 100%;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .grid {
+      display: grid;
+      gap: 4px;
+      width: 100%;
+      height: 100%;
+    }
+    .cell {
+      background: var(--cell-bg);
+      color: var(--cell-text);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: all 0.15s;
+    }
+    .cell.crossed {
+      background: var(--crossed);
+      color: white;
+      text-decoration: line-through;
+      opacity: 0.8;
+      cursor: not-allowed;
+    }
+    .cell.blind {
+      background: #1e293b;
+      color: var(--accent);
+      border: 1px dashed var(--border);
+    }
+    .cell.peeked {
+      border: 2px solid #38bdf8;
+      background: #0369a1;
+      color: white;
+    }
+
+    .bingo-tracker {
+      display: flex;
+      justify-content: center;
+      gap: 5px;
+      margin: 6px 0;
+      flex-wrap: wrap;
+    }
+    .letter {
+      flex: 1;
+      min-width: 24px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      font-weight: 900;
+      border-radius: 6px;
+      background: var(--cell-bg);
+      color: #64748b;
+      transition: all 0.2s;
+    }
+    .letter.active {
+      background: var(--accent);
+      color: #000;
+      box-shadow: 0 0 8px var(--accent);
+      transform: scale(1.05);
+    }
+
+    .spotlight-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--spotlight-bg);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 6px 12px;
+      margin: 6px 0;
+    }
+    .spotlight-number {
+      font-size: 1.3rem;
+      font-weight: 900;
+      color: var(--accent);
+      background: var(--cell-bg);
+      padding: 2px 10px;
+      border-radius: 6px;
+    }
+
+    .turn-indicator {
+      text-align: center;
+      font-size: 0.9rem;
+      font-weight: bold;
+      padding: 8px;
+      border-radius: 6px;
+      background: var(--spotlight-bg);
+      margin-top: 6px;
+    }
+
+    /* Modal / QR Overlay */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 10000;
+    }
+    .modal-card {
+      background: var(--card-bg);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 360px;
+      width: 100%;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Floating Reactions */
+    .emoji-bar {
+      display: flex;
+      justify-content: space-around;
+      background: var(--spotlight-bg);
+      padding: 6px;
+      border-radius: 8px;
+      margin-top: 6px;
+    }
+    .emoji-btn { background: none; border: none; font-size: 1.3rem; cursor: pointer; }
+    .floating-reaction {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      font-size: 2.5rem;
+      pointer-events: none;
+      animation: floatUp 1.8s forwards ease-out;
+      z-index: 9999;
+    }
+    @keyframes floatUp {
+      0% { opacity: 1; transform: translate(-50%, 0) scale(0.8); }
+      50% { transform: translate(calc(-50% + (var(--rand-x) * 40px)), -120px) scale(1.3); }
+      100% { opacity: 0; transform: translate(calc(-50% + (var(--rand-x) * 80px)), -240px) scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="top-bar">
+    <h1>Multiplayer Bingo <span class="badge">v3.1</span></h1>
+    <select class="theme-select" onchange="changeTheme(this.value)">
+      <option value="default">🌴 Marina Gaana</option>
+      <option value="superstar">🕶️ Superstar Cinema</option>
+      <option value="gulab">🌹 Gulab Festival</option>
+      <option value="monsoon">☕ Monsoon Chai</option>
+      <option value="tokyo">⚡ Cyber Tokyo</option>
+      <option value="vegas">🎰 Vegas Gold</option>
+    </select>
+  </div>
+
+  <div class="panel" id="lobby-panel">
+    <div class="input-group">
+      <input type="text" id="player-name" placeholder="Your Nickname" maxlength="12">
+      <input type="text" id="room-pin" placeholder="4-Digit Room PIN" maxlength="6">
+
+      <label>Role</label>
+      <select id="player-role">
+        <option value="player">🎮 Active Player</option>
+        <option value="spectator">👁️ Audience / Host Spectator</option>
+      </select>
+
+      <label>Power-Ups Mode</label>
+      <select id="powerups-mode-select">
+        <option value="off" selected>⚪ OFF (Classic Vanilla Bingo)</option>
+        <option value="on">⚡ ON (Draft Powers Each Round)</option>
+      </select>
+
+      <label>Grid Size</label>
+      <select id="grid-size-select" onchange="updateLinesDropdown()">
+        <option value="3">3 × 3 (Mini 1-9)</option>
+        <option value="4">4 × 4 (Quick 1-16)</option>
+        <option value="5" selected>5 × 5 (Classic 1-25)</option>
+        <option value="6">6 × 6 (1-36)</option>
+        <option value="7">7 × 7 (1-49)</option>
+        <option value="8">8 × 8 (1-64)</option>
+        <option value="9">9 × 9 (1-81)</option>
+        <option value="10">10 × 10 (1-100)</option>
+      </select>
+
+      <label>Lines to Win</label>
+      <select id="target-lines-select"></select>
+
+      <label style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:6px;">
+        <input type="checkbox" id="blind-mode-chk" style="width:auto;"> 🕵️ Mystery / Blind Mode
+      </label>
+
+      <div class="row" style="margin-top: 8px;">
+        <button class="btn" onclick="initHost()">Host Room</button>
+        <button class="btn btn-secondary" onclick="initJoin()">Join Room</button>
+      </div>
+    </div>
+    <div id="lobby-status" style="margin-top: 10px; font-size: 0.85rem; text-align: center; color: #94a3b8;">
+      Enter name & PIN to host or join.
+    </div>
+  </div>
+
+  <div class="panel" id="game-panel" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-size: 0.8rem; color: #94a3b8;">
+        Room: <b id="display-room" style="color:var(--accent);"></b> (<span id="display-size">5×5</span> • <span id="display-target">5 Lines</span> <span id="display-powers-tag"></span>)
+      </span>
+      <div style="display: flex; gap: 4px;">
+        <button class="btn btn-secondary" style="width:auto; margin:0; padding:4px 8px; font-size:0.75rem;" onclick="showQRModal()">📲 Share QR</button>
+        <button class="btn btn-danger" style="width:auto; margin:0; padding:4px 8px; font-size:0.75rem;" onclick="location.reload()">Exit</button>
+      </div>
+    </div>
+
+    <div class="walkie-bar">
+      <span style="font-size: 0.8rem;" id="voice-status">📻 Voice: Ready</span>
+      <button class="ptt-btn" id="ptt-button" onmousedown="startVoiceTransmission()" onmouseup="stopVoiceTransmission()" ontouchstart="startVoiceTransmission()" ontouchend="stopVoiceTransmission()">🎙️ HOLD TO TALK</button>
+    </div>
+
+    <div class="players-list" id="players-box"></div>
+
+    <div id="power-draft-box" style="margin-top: 8px; display: none; background: var(--spotlight-bg); padding: 10px; border-radius: 8px;">
+      <div style="font-size: 0.85rem; font-weight: bold; text-align: center; margin-bottom: 6px;">⚡ Draft Your 1-Time Power-Up</div>
+      <div class="power-grid" id="power-grid-options"></div>
+    </div>
+
+    <button class="power-trigger-btn" id="active-power-btn" onclick="useActivePower()"></button>
+
+    <div class="spotlight-box" id="spotlight-bar" style="display: none;">
+      <span style="font-size: 0.8rem; color: #94a3b8;" id="spotlight-caller">Last Called:</span>
+      <span class="spotlight-number" id="spotlight-num">--</span>
+    </div>
+
+    <div class="bingo-tracker" id="tracker-bar"></div>
+
+    <div class="grid-container" id="grid-wrapper">
+      <div class="grid" id="board"></div>
+    </div>
+
+    <div class="turn-indicator" id="turn-box">Set your board to begin</div>
+
+    <div class="row" id="setup-buttons">
+      <button class="btn btn-secondary" id="random-btn" onclick="randomizeBoard()">Shuffle</button>
+      <button class="btn btn-warning" id="manual-btn" onclick="startManualFill()">Manual Fill</button>
+      <button class="btn btn-success" id="ready-btn" onclick="setReady()">Ready</button>
+    </div>
+
+    <div class="emoji-bar" id="emoji-bar" style="display: none;">
+      <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
+      <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
+      <button class="emoji-btn" onclick="sendEmoji('🎯')">🎯</button>
+      <button class="emoji-btn" onclick="sendEmoji('😱')">😱</button>
+      <button class="emoji-btn" onclick="sendEmoji('👏')">👏</button>
+    </div>
+
+    <button class="btn btn-success" id="reset-btn" style="display: none; margin-top: 8px;" onclick="requestReset()">🔄 Next Round / Reset</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="qr-modal" style="display: none;" onclick="hideQRModal()">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <h3 style="color: var(--accent);">Fast Join Room</h3>
+    <div id="qrcode-container" style="background:white; padding:10px; border-radius:8px;"></div>
+    <p style="font-size: 0.8rem; color:#94a3b8;">Scan with phone camera or share room PIN: <b id="qr-room-text" style="color:var(--text);"></b></p>
+    <button class="btn btn-secondary" onclick="copyJoinLink()">📋 Copy Direct Link</button>
+    <button class="btn btn-danger" onclick="hideQRModal()">Close</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="stats-modal" style="display: none;">
+  <div class="modal-card">
+    <h2 style="color: #10b981;">🏆 Round Summary</h2>
+    <div id="stats-content" style="font-size: 0.85rem; text-align: left; width: 100%; display: flex; flex-direction: column; gap: 6px;"></div>
+    <button class="btn btn-success" onclick="closeStatsModal()">Continue</button>
+  </div>
+</div>
+
+<script>
+  // Web Audio Synth
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  function playSynth(freq, duration, type="sine") {
+    try {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    } catch(e){}
+  }
+
+  const peerConfig = {
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    }
+  };
+
+  // State Variables
+  let peer = null;
+  let isHost = false;
+  let myName = "Player";
+  let myRole = "player";
+  let roomCode = "";
+  let connections = new Map();
+  let hostConn = null;
+
+  let gridSize = 5;
+  let targetLinesToWin = 5;
+  let isBlindMode = false;
+  let isPowerUpsEnabled = false;
+  let totalCells = 25;
+  let targetLetters = [];
+
+  let players = [];
+  let currentTurnIndex = 0;
+  let roundStarterIndex = 0;
+  let grid = [];
+  let crossed = [];
+  let peekedIndices = [];
+  let gameStarted = false;
+
+  let isManualMode = false;
+  let nextManualNumber = 1;
+
+  // Power-up state
+  let mySelectedPower = null;
+  let doubleStrikeRemaining = 0;
+
+  // Stats
+  let roundStats = { callsCount: 0 };
+
+  // Voice WebRTC Stream
+  let localMediaStream = null;
+
+  const POWER_LIST = [
+    { id: 'double', name: '⚡ Double Strike', desc: 'Call 2 numbers on your turn' },
+    { id: 'freeze', name: '❄️ Turn Freeze', desc: 'Skip next player’s move' },
+    { id: 'peek', name: '🎯 Target Peek', desc: 'Preview 2 hidden tiles (Blind mode)' },
+    { id: 'shield', name: '🛡️ Shield', desc: 'Block freeze or skips against you' }
+  ];
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomParam = urlParams.get('room');
+    if (roomParam) {
+      document.getElementById('room-pin').value = roomParam;
+    }
+  });
+
+  function changeTheme(themeName) {
+    document.body.className = '';
+    if (themeName !== 'default') {
+      document.body.classList.add('theme-' + themeName);
+    }
+  }
+
+  function updateLinesDropdown() {
+    const size = parseInt(document.getElementById('grid-size-select').value, 10);
+    const maxPossible = Math.min((size * 2) + 2, 12);
+    const sel = document.getElementById('target-lines-select');
+    sel.innerHTML = '';
+    for (let i = 1; i <= maxPossible; i++) {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.innerText = `${i} Line${i > 1 ? 's' : ''}${i === size ? ' (Standard)' : ''}`;
+      if (i === size) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+  updateLinesDropdown();
+
+  function getCleanId(pin) {
+    return 'bg-v31-' + pin.trim().toUpperCase();
+  }
+
+  function setupLetterGoals(size, linesRequired, blind, powerups) {
+    gridSize = size;
+    targetLinesToWin = linesRequired;
+    isBlindMode = blind;
+    isPowerUpsEnabled = powerups;
+    totalCells = size * size;
+
+    const alphabet = "BINGOEXCELVICTORY";
+    targetLetters = alphabet.slice(0, targetLinesToWin).split('');
+
+    const trackerBar = document.getElementById('tracker-bar');
+    trackerBar.innerHTML = '';
+    targetLetters.forEach((char, i) => {
+      const el = document.createElement('div');
+      el.className = 'letter';
+      el.id = `let-${i}`;
+      el.innerText = char;
+      trackerBar.appendChild(el);
+    });
+
+    document.getElementById('display-size').innerText = `${size}×${size}${isBlindMode ? ' 🕵️' : ''}`;
+    document.getElementById('display-target').innerText = `${targetLinesToWin} Line${targetLinesToWin > 1 ? 's' : ''}`;
+    document.getElementById('display-powers-tag').innerText = isPowerUpsEnabled ? '• ⚡ Powers ON' : '';
+
+    grid = Array(totalCells).fill(0);
+    crossed = Array(totalCells).fill(false);
+    peekedIndices = [];
+  }
+
+  // --- HOST INITIALIZATION ---
+  function initHost() {
+    myName = document.getElementById('player-name').value.trim() || 'Host';
+    roomCode = document.getElementById('room-pin').value.trim().toUpperCase();
+    myRole = document.getElementById('player-role').value;
+    const chosenSize = parseInt(document.getElementById('grid-size-select').value, 10);
+    const chosenLines = parseInt(document.getElementById('target-lines-select').value, 10);
+    const blind = document.getElementById('blind-mode-chk').checked;
+    const powerups = document.getElementById('powerups-mode-select').value === 'on';
+
+    if (!roomCode) return alert('Enter a 4-digit code first!');
+
+    document.getElementById('lobby-status').innerText = "Creating room...";
+    peer = new Peer(getCleanId(roomCode), peerConfig);
+
+    peer.on('open', () => {
+      isHost = true;
+      setupLetterGoals(chosenSize, chosenLines, blind, powerups);
+      showGameUI();
+      players.push({ 
+        id: peer.id, 
+        name: myName, 
+        role: myRole, 
+        ready: false, 
+        lines: 0, 
+        wins: 0, 
+        power: null, 
+        consecutiveWins: 0, 
+        lastUsedPower: null 
+      });
+      renderPlayers();
+      if (isPowerUpsEnabled) renderPowerDraftOptions();
+    });
+
+    peer.on('connection', (conn) => {
+      connections.set(conn.peer, conn);
+      conn.on('open', () => {
+        conn.send({
+          type: 'init_config',
+          gridSize,
+          targetLinesToWin,
+          isBlindMode,
+          isPowerUpsEnabled,
+          players,
+          currentTurnIndex,
+          gameStarted
+        });
+      });
+      conn.on('data', (data) => handleHostIncomingData(conn, data));
+      conn.on('close', () => {
+        connections.delete(conn.peer);
+        players = players.filter(p => p.id !== conn.peer);
+        broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+        renderPlayers();
+      });
+    });
+
+    peer.on('call', (call) => {
+      call.answer();
+      call.on('stream', (remoteStream) => playIncomingAudioStream(remoteStream));
+    });
+
+    peer.on('error', (err) => {
+      document.getElementById('lobby-status').innerText = err.type === 'unavailable-id' ? "Room code busy. Choose another!" : "Error: " + err.type;
+    });
+  }
+
+  // --- JOIN INITIALIZATION ---
+  function initJoin() {
+    myName = document.getElementById('player-name').value.trim() || 'Guest';
+    roomCode = document.getElementById('room-pin').value.trim().toUpperCase();
+    myRole = document.getElementById('player-role').value;
+
+    if (!roomCode) return alert('Enter Host room PIN first!');
+
+    document.getElementById('lobby-status').innerText = "Connecting to Host...";
+    peer = new Peer(peerConfig);
+
+    peer.on('open', () => {
+      hostConn = peer.connect(getCleanId(roomCode), { reliable: true });
+
+      hostConn.on('open', () => {
+        isHost = false;
+        hostConn.send({ type: 'join', name: myName, role: myRole });
+      });
+
+      hostConn.on('data', (data) => handleClientIncomingData(data));
+      hostConn.on('close', () => alert('Disconnected from host.'));
+    });
+
+    peer.on('call', (call) => {
+      call.answer();
+      call.on('stream', (remoteStream) => playIncomingAudioStream(remoteStream));
+    });
+
+    peer.on('error', () => {
+      document.getElementById('lobby-status').innerText = "Cannot find room. Make sure Host created it!";
+    });
+  }
+
+  function showGameUI() {
+    document.getElementById('lobby-panel').style.display = 'none';
+    document.getElementById('game-panel').style.display = 'block';
+    document.getElementById('display-room').innerText = roomCode;
+
+    if (myRole === 'spectator') {
+      document.getElementById('grid-wrapper').style.display = 'none';
+      document.getElementById('setup-buttons').style.display = 'none';
+      document.getElementById('power-draft-box').style.display = 'none';
+      document.getElementById('turn-box').innerText = "Spectator / Audience Mode Active 👁️";
+    } else {
+      createBoard();
+      randomizeBoard();
+      document.getElementById('power-draft-box').style.display = isPowerUpsEnabled ? 'block' : 'none';
+    }
+  }
+
+  function broadcast(msg) {
+    connections.forEach((conn) => {
+      if (conn && conn.open) conn.send(msg);
+    });
+  }
+
+  // --- POWER-UP SELECTION ---
+  function renderPowerDraftOptions() {
+    if (!isPowerUpsEnabled) return;
+    const box = document.getElementById('power-grid-options');
+    box.innerHTML = '';
+    const myPlayer = players.find(p => (isHost && p.id === peer.id) || (!isHost && hostConn && p.id === peer.id));
+
+    const isLockedOut = myPlayer && myPlayer.consecutiveWins >= 2;
+
+    POWER_LIST.forEach((pow) => {
+      const card = document.createElement('div');
+      card.className = 'power-card';
+      
+      const cannotReuse = myPlayer && myPlayer.lastUsedPower === pow.id;
+      if (isLockedOut || cannotReuse) {
+        card.classList.add('disabled');
+        card.title = isLockedOut ? "2-Win Streak Handicap: No Power!" : "Cannot use same power 2 games in a row!";
+      } else {
+        card.onclick = () => selectPower(pow.id);
+      }
+
+      if (mySelectedPower === pow.id) card.classList.add('selected');
+      card.innerHTML = `<div>${pow.name}</div><div style="font-size:0.7rem; font-weight:normal; margin-top:2px;">${pow.desc}</div>`;
+      box.appendChild(card);
+    });
+  }
+
+  function selectPower(powerId) {
+    if (!isPowerUpsEnabled) return;
+    mySelectedPower = powerId;
+    renderPowerDraftOptions();
+    if (isHost) {
+      const p = players.find(x => x.id === peer.id);
+      if (p) p.power = powerId;
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+      renderPlayers();
+    } else if (hostConn && hostConn.open) {
+      hostConn.send({ type: 'set_power', power: powerId });
+    }
+  }
+
+  function activatePowerUI() {
+    const btn = document.getElementById('active-power-btn');
+    if (isPowerUpsEnabled && mySelectedPower && myRole === 'player') {
+      const pow = POWER_LIST.find(p => p.id === mySelectedPower);
+      btn.style.display = 'block';
+      btn.innerText = `USE POWER: ${pow.name}`;
+      btn.disabled = false;
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+
+  function useActivePower() {
+    const btn = document.getElementById('active-power-btn');
+    btn.disabled = true;
+
+    if (mySelectedPower === 'double') {
+      doubleStrikeRemaining = 1;
+      alert("⚡ Double Strike Armed! Pick 2 numbers on your turn.");
+    } else if (mySelectedPower === 'freeze') {
+      sendGameAction({ type: 'trigger_freeze', from: myName });
+    } else if (mySelectedPower === 'peek') {
+      if (isBlindMode) {
+        peekTwoHiddenTiles();
+      } else {
+        alert("Target peek is only active in Blind Mode!");
+      }
+    }
+    mySelectedPower = null;
+    btn.style.display = 'none';
+  }
+
+  function peekTwoHiddenTiles() {
+    const uncrossed = [];
+    grid.forEach((n, i) => { if (!crossed[i]) uncrossed.push(i); });
+    peekedIndices = uncrossed.sort(() => Math.random() - 0.5).slice(0, 2);
+    renderBoard();
+    setTimeout(() => {
+      peekedIndices = [];
+      renderBoard();
+    }, 4000);
+  }
+
+  // --- HOST INCOMING DATA ---
+  function handleHostIncomingData(conn, data) {
+    if (data.type === 'join') {
+      const existing = players.find(p => p.id === conn.peer);
+      if (!existing) {
+        players.push({ 
+          id: conn.peer, 
+          name: data.name, 
+          role: data.role, 
+          ready: false, 
+          lines: 0, 
+          wins: 0, 
+          power: null, 
+          consecutiveWins: 0, 
+          lastUsedPower: null 
+        });
+      }
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+      renderPlayers();
+    } else if (data.type === 'set_power') {
+      const p = players.find(x => x.id === conn.peer);
+      if (p) p.power = data.power;
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+      renderPlayers();
+    } else if (data.type === 'ready') {
+      const p = players.find(x => x.id === conn.peer);
+      if (p) p.ready = true;
+      checkAllReady();
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+      renderPlayers();
+    } else if (data.type === 'score_update') {
+      const p = players.find(x => x.id === conn.peer);
+      if (p) p.lines = data.lines;
+      checkNearWinDrama();
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+      renderPlayers();
+    } else if (data.type === 'strike') {
+      handleMoveStrike(data.num, data.caller);
+    } else if (data.type === 'trigger_freeze') {
+      advanceTurn(true);
+    } else if (data.type === 'win') {
+      handleWinnerFound(data.name);
+    } else if (data.type === 'emoji') {
+      showFloatingEmoji(data.emoji);
+      broadcast({ type: 'emoji', emoji: data.emoji });
+    } else if (data.type === 'request_reset') {
+      resetGameForAll();
+    }
+  }
+
+  // --- CLIENT INCOMING DATA ---
+  function handleClientIncomingData(data) {
+    if (data.type === 'init_config') {
+      setupLetterGoals(data.gridSize, data.targetLinesToWin, data.isBlindMode, data.isPowerUpsEnabled);
+      if (data.players) players = data.players;
+      showGameUI();
+      if (isPowerUpsEnabled) renderPowerDraftOptions();
+    } else if (data.type === 'sync_players') {
+      players = data.players;
+      currentTurnIndex = data.currentTurnIndex;
+      gameStarted = data.gameStarted;
+      renderPlayers();
+      if (gameStarted) updateTurnUI();
+    } else if (data.type === 'start') {
+      gameStarted = true;
+      currentTurnIndex = data.currentTurnIndex;
+      document.getElementById('setup-buttons').style.display = 'none';
+      document.getElementById('power-draft-box').style.display = 'none';
+      document.getElementById('emoji-bar').style.display = 'flex';
+      document.getElementById('reset-btn').style.display = 'none';
+      activatePowerUI();
+      updateTurnUI();
+      renderPlayers();
+    } else if (data.type === 'strike') {
+      crossNumber(data.num);
+      updateSpotlight(data.num, data.caller);
+      currentTurnIndex = data.currentTurnIndex;
+      updateTurnUI();
+      renderPlayers();
+    } else if (data.type === 'win') {
+      gameStarted = false;
+      showWinner(data.winner);
+      displayStatsModal(data.stats);
+    } else if (data.type === 'emoji') {
+      showFloatingEmoji(data.emoji);
+    } else if (data.type === 'reset') {
+      handleLocalReset();
+    }
+  }
+
+  function handleMoveStrike(num, callerName) {
+    roundStats.callsCount++;
+    crossNumber(num);
+    updateSpotlight(num, callerName);
+    advanceTurn(false);
+  }
+
+  function advanceTurn(skipped) {
+    const activePlayers = players.filter(p => p.role === 'player');
+    if (activePlayers.length === 0) return;
+
+    if (doubleStrikeRemaining > 0) {
+      doubleStrikeRemaining--;
+      updateTurnUI();
+      return;
+    }
+
+    const step = skipped ? 2 : 1;
+    currentTurnIndex = (currentTurnIndex + step) % activePlayers.length;
+    broadcast({ type: 'strike', num: grid[currentTurnIndex] || 0, caller: myName, currentTurnIndex });
+    updateTurnUI();
+    renderPlayers();
+  }
+
+  function checkNearWinDrama() {
+    const isNearWin = players.some(p => p.lines >= targetLinesToWin - 1 && targetLinesToWin > 1);
+    if (isNearWin) {
+      document.body.classList.add('near-win-drama');
+      playSynth(200, 0.4, 'sawtooth');
+    } else {
+      document.body.classList.remove('near-win-drama');
+    }
+  }
+
+  function sendGameAction(msg) {
+    if (isHost) handleHostIncomingData({ peer: peer.id }, msg);
+    else if (hostConn && hostConn.open) hostConn.send(msg);
+  }
+
+  // --- WALKIE TALKIE (PUSH TO TALK) ---
+  async function startVoiceTransmission() {
+    try {
+      document.getElementById('ptt-button').classList.add('talking');
+      document.getElementById('voice-status').innerText = "📻 Transmitting...";
+      if (!localMediaStream) {
+        localMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      }
+      if (isHost) {
+        connections.forEach((conn, peerId) => {
+          peer.call(peerId, localMediaStream);
+        });
+      } else if (hostConn) {
+        peer.call(getCleanId(roomCode), localMediaStream);
+      }
+    } catch(e) {
+      document.getElementById('voice-status').innerText = "Mic blocked!";
+    }
+  }
+
+  function stopVoiceTransmission() {
+    document.getElementById('ptt-button').classList.remove('talking');
+    document.getElementById('voice-status').innerText = "📻 Voice: Standby";
+    if (localMediaStream) {
+      localMediaStream.getTracks().forEach(track => track.stop());
+      localMediaStream = null;
+    }
+  }
+
+  function playIncomingAudioStream(stream) {
+    const audio = new Audio();
+    audio.srcObject = stream;
+    audio.play();
+  }
+
+  // --- RENDERING & UI ---
+  function renderPlayers() {
+    const box = document.getElementById('players-box');
+    box.innerHTML = '';
+    const activePlayers = players.filter(p => p.role === 'player');
+
+    players.forEach((p) => {
+      const isTurn = gameStarted && activePlayers[currentTurnIndex] && activePlayers[currentTurnIndex].id === p.id;
+      const row = document.createElement('div');
+      row.className = 'player-row' + (isTurn ? ' active-turn' : '');
+      
+      const powBadge = (isPowerUpsEnabled && p.power) ? ` [${p.power.toUpperCase()}]` : '';
+      const statusText = p.role === 'spectator' ? '👁️ Audience' : (!gameStarted ? (p.ready ? '✅ Ready' : '⏳ Waiting') : `${p.lines}/${targetLinesToWin} Lines`);
+
+      row.innerHTML = `
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span>${p.name}</span>
+          <span style="color:#facc15; font-size:0.75rem;">🏆 ${p.wins || 0}</span>
+          <span style="font-size:0.7rem; opacity:0.8;">${powBadge}</span>
+        </div>
+        <span style="background:rgba(0,0,0,0.25); padding:2px 6px; border-radius:4px;">${statusText}</span>
+      `;
+      box.appendChild(row);
+    });
+  }
+
+  function setReady() {
+    if (grid.includes(0)) return alert(`Fill all numbers 1 to ${totalCells} first!`);
+    document.getElementById('ready-btn').disabled = true;
+    document.getElementById('ready-btn').innerText = "Waiting...";
+    sendGameAction({ type: 'ready' });
+  }
+
+  function checkAllReady() {
+    const activePlayers = players.filter(p => p.role === 'player');
+    if (activePlayers.length >= 1 && activePlayers.every(p => p.ready)) {
+      gameStarted = true;
+      currentTurnIndex = roundStarterIndex;
+      document.getElementById('setup-buttons').style.display = 'none';
+      document.getElementById('power-draft-box').style.display = 'none';
+      document.getElementById('emoji-bar').style.display = 'flex';
+      document.getElementById('reset-btn').style.display = 'none';
+      broadcast({ type: 'start', currentTurnIndex });
+      activatePowerUI();
+      updateTurnUI();
+      renderPlayers();
+    }
+  }
+
+  function updateTurnUI() {
+    const activePlayers = players.filter(p => p.role === 'player');
+    const active = activePlayers[currentTurnIndex];
+    if (!active) return;
+    const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
+
+    const turnBox = document.getElementById('turn-box');
+    if (isMyTurn) {
+      turnBox.innerText = doubleStrikeRemaining > 0 ? "⚡ Double Strike Turn! Pick 2nd number." : "👉 Your Turn! Pick a tile.";
+      turnBox.style.color = "var(--accent)";
+    } else {
+      turnBox.innerText = `Waiting for ${active.name}...`;
+      turnBox.style.color = "#94a3b8";
+    }
+  }
+
+  function handleCellClick(idx) {
+    if (isManualMode) { handleManualCellClick(idx); return; }
+    if (!gameStarted) return;
+
+    const activePlayers = players.filter(p => p.role === 'player');
+    const active = activePlayers[currentTurnIndex];
+    const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
+    if (!isMyTurn || crossed[idx]) return;
+
+    const chosenNum = grid[idx];
+    sendGameAction({ type: 'strike', num: chosenNum, caller: myName });
+  }
+
+  function crossNumber(num) {
+    const idx = grid.indexOf(num);
+    if (idx !== -1) {
+      crossed[idx] = true;
+      renderBoard();
+      checkBingo();
+    }
+  }
+
+  function checkBingo() {
+    let lines = 0;
+    for (let r = 0; r < gridSize; r++) {
+      if ([...Array(gridSize).keys()].every(c => crossed[r * gridSize + c])) lines++;
+    }
+    for (let c = 0; c < gridSize; c++) {
+      if ([...Array(gridSize).keys()].every(r => crossed[r * gridSize + c])) lines++;
+    }
+    if ([...Array(gridSize).keys()].every(i => crossed[i * gridSize + i])) lines++;
+    if ([...Array(gridSize).keys()].every(i => crossed[i * gridSize + (gridSize - 1 - i)])) lines++;
+
+    lines = Math.min(lines, targetLinesToWin);
+
+    for (let i = 0; i < targetLinesToWin; i++) {
+      const el = document.getElementById(`let-${i}`);
+      if (el) {
+        if (i < lines) el.classList.add('active');
+        else el.classList.remove('active');
+      }
+    }
+
+    sendGameAction({ type: 'score_update', lines });
+
+    if (lines >= targetLinesToWin && gameStarted) {
+      gameStarted = false;
+      sendGameAction({ type: 'win', name: myName });
+    }
+  }
+
+  function handleWinnerFound(winnerName) {
+    document.body.classList.remove('near-win-drama');
+    players.forEach(p => {
+      if (p.name === winnerName) {
+        p.wins = (p.wins || 0) + 1;
+        p.consecutiveWins = (p.consecutiveWins || 0) + 1;
+      } else {
+        p.consecutiveWins = 0;
+      }
+      p.lastUsedPower = p.power;
+      p.power = null;
+    });
+
+    const stats = {
+      winner: winnerName,
+      totalNumbersCalled: roundStats.callsCount,
+      boardSize: `${gridSize}×${gridSize}`
+    };
+
+    broadcast({ type: 'win', winner: winnerName, players, stats });
+    showWinner(winnerName);
+    displayStatsModal(stats);
+  }
+
+  function showWinner(winnerName) {
+    document.getElementById('turn-box').innerText = `🎉 ${winnerName} WON BINGO! 🎉`;
+    document.getElementById('reset-btn').style.display = 'block';
+    if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+  }
+
+  function displayStatsModal(stats) {
+    document.getElementById('stats-content').innerHTML = `
+      <div>👑 <b>Winner:</b> ${stats.winner}</div>
+      <div>🔢 <b>Total Calls:</b> ${stats.totalNumbersCalled || 'N/A'}</div>
+      <div>📐 <b>Grid Matrix:</b> ${stats.boardSize}</div>
+      <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px;">${isPowerUpsEnabled ? 'Draft your new Power-Up for the next round!' : 'Get ready for the next round!'}</div>
+    `;
+    document.getElementById('stats-modal').style.display = 'flex';
+  }
+  function closeStatsModal() {
+    document.getElementById('stats-modal').style.display = 'none';
+  }
+
+  function requestReset() {
+    sendGameAction({ type: 'request_reset' });
+  }
+
+  function resetGameForAll() {
+    players.forEach(p => { p.ready = false; p.lines = 0; });
+    gameStarted = false;
+    roundStarterIndex = (roundStarterIndex + 1) % Math.max(1, players.filter(p=>p.role==='player').length);
+    currentTurnIndex = roundStarterIndex;
+    roundStats.callsCount = 0;
+    broadcast({ type: 'reset' });
+    broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+    handleLocalReset();
+  }
+
+  function handleLocalReset() {
+    crossed = Array(totalCells).fill(false);
+    document.getElementById('spotlight-bar').style.display = 'none';
+    randomizeBoard();
+    document.getElementById('setup-buttons').style.display = 'flex';
+    document.getElementById('power-draft-box').style.display = isPowerUpsEnabled ? 'block' : 'none';
+    document.getElementById('emoji-bar').style.display = 'none';
+    document.getElementById('ready-btn').disabled = false;
+    document.getElementById('ready-btn').innerText = "Ready";
+    document.getElementById('reset-btn').style.display = 'none';
+    document.getElementById('turn-box').innerText = isPowerUpsEnabled ? "Draft power, shuffle board & press Ready!" : "Shuffle board & press Ready!";
+    if (isPowerUpsEnabled) renderPowerDraftOptions();
+    renderPlayers();
+  }
+
+  // --- FAST QR GENERATION ---
+  function showQRModal() {
+    document.getElementById('qr-modal').style.display = 'flex';
+    document.getElementById('qr-room-text').innerText = roomCode;
+    const container = document.getElementById('qrcode-container');
+    container.innerHTML = '';
+    const joinUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+    new QRCode(container, { text: joinUrl, width: 140, height: 140 });
+  }
+  function hideQRModal() { document.getElementById('qr-modal').style.display = 'none'; }
+  function copyJoinLink() {
+    const joinUrl = `${window.location.origin}${window.location.pathname}?room=${roomCode}`;
+    navigator.clipboard.writeText(joinUrl);
+    alert("Direct join link copied to clipboard!");
+  }
+
+  // --- BOARD HELPERS ---
+  function createBoard() {
+    const board = document.getElementById('board');
+    board.innerHTML = '';
+    board.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+    const fontSize = gridSize <= 5 ? '1.1rem' : gridSize <= 7 ? '0.85rem' : '0.7rem';
+
+    for (let i = 0; i < totalCells; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.fontSize = fontSize;
+      cell.onclick = () => handleCellClick(i);
+      board.appendChild(cell);
+    }
+  }
+
+  function randomizeBoard() {
+    if (gameStarted) return;
+    grid = Array.from({length: totalCells}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+    renderBoard();
+  }
+
+  function renderBoard() {
+    const cells = document.getElementById('board').children;
+    for (let i = 0; i < totalCells; i++) {
+      let isPeeked = peekedIndices.includes(i);
+      let text = (isBlindMode && !crossed[i] && !isPeeked) ? '?' : (grid[i] || '');
+      cells[i].innerText = text;
+      cells[i].className = 'cell' + (crossed[i] ? ' crossed' : '') + (isBlindMode && !crossed[i] ? ' blind' : '') + (isPeeked ? ' peeked' : '');
+    }
+  }
+
+  function startManualFill() {
+    if (gameStarted) return;
+    isManualMode = true;
+    nextManualNumber = 1;
+    grid = Array(totalCells).fill(0);
+    renderBoard();
+    document.getElementById('turn-box').innerText = `Place: ${nextManualNumber} of ${totalCells}`;
+  }
+
+  function handleManualCellClick(idx) {
+    if (grid[idx] !== 0) return;
+    grid[idx] = nextManualNumber++;
+    renderBoard();
+    if (nextManualNumber > totalCells) {
+      isManualMode = false;
+      document.getElementById('turn-box').innerText = "Board filled! Press Ready.";
+    } else {
+      document.getElementById('turn-box').innerText = `Place: ${nextManualNumber} of ${totalCells}`;
+    }
+  }
+
+  function updateSpotlight(num, callerName) {
+    document.getElementById('spotlight-bar').style.display = 'flex';
+    document.getElementById('spotlight-num').innerText = num;
+    document.getElementById('spotlight-caller').innerText = `Called by ${callerName}:`;
+  }
+
+  function sendEmoji(emoji) {
+    showFloatingEmoji(emoji);
+    sendGameAction({ type: 'emoji', emoji });
+  }
+
+  function showFloatingEmoji(emoji) {
+    const el = document.createElement('div');
+    el.className = 'floating-reaction';
+    el.innerText = emoji;
+    el.style.setProperty('--rand-x', (Math.random() - 0.5) * 2);
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1800);
+  }
+</script>
+</body>
+</html>
