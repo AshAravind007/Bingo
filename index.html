@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Multiplayer Bingo v3.2</title>
+  <title>Multiplayer Bingo v3.3</title>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
@@ -88,7 +88,7 @@
       --spotlight-bg: #000000;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; touch-action: manipulation; }
     
     body {
       background-color: var(--bg);
@@ -215,7 +215,6 @@
       font-size: 0.8rem;
       font-weight: bold;
       transition: all 0.2s;
-      position: relative;
     }
     .power-card.selected {
       border-color: var(--accent);
@@ -247,7 +246,7 @@
       color: #000;
       font-weight: 900;
       border: none;
-      padding: 8px;
+      padding: 10px;
       border-radius: 8px;
       margin-top: 6px;
       width: 100%;
@@ -256,7 +255,7 @@
       display: none;
     }
 
-    /* Turn-Based Audio Controls */
+    /* Turn-Based Voice Bar */
     .turn-voice-bar {
       display: flex;
       align-items: center;
@@ -285,6 +284,24 @@
     .mic-switch-btn:disabled {
       opacity: 0.3;
       cursor: not-allowed;
+    }
+
+    /* Timer Row */
+    .timer-control-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--spotlight-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin-top: 6px;
+      font-size: 0.8rem;
+    }
+    .timer-badge {
+      font-weight: 900;
+      color: #ef4444;
+      font-size: 0.95rem;
     }
 
     .player-row {
@@ -458,7 +475,7 @@
 
 <div class="container">
   <div class="top-bar">
-    <h1>Multiplayer Bingo <span class="badge">v3.2</span></h1>
+    <h1>Multiplayer Bingo <span class="badge">v3.3</span></h1>
     <select class="theme-select" onchange="changeTheme(this.value)">
       <option value="default">🌴 Marina Gaana</option>
       <option value="superstar">🕶️ Superstar Cinema</option>
@@ -482,8 +499,8 @@
 
       <label>Power-Ups Mode</label>
       <select id="powerups-mode-select">
+        <option value="on" selected>⚡ ON (Draft Single-Use Powers)</option>
         <option value="off">⚪ OFF (Classic Vanilla Bingo)</option>
-        <option value="on" selected>⚡ ON (Draft Unique Powers)</option>
       </select>
 
       <label>Grid Size</label>
@@ -527,14 +544,22 @@
     </div>
 
     <div class="turn-voice-bar">
-      <span style="font-size: 0.8rem;" id="voice-status">🎙️ Mic: Locked (Wait for your turn)</span>
+      <span style="font-size: 0.8rem;" id="voice-status">🎙️ Mic: Locked</span>
       <button class="mic-switch-btn" id="mic-toggle-btn" disabled onclick="toggleTurnMicrophone()">🎙️ Mic OFF</button>
+    </div>
+
+    <div class="timer-control-row" id="timer-vote-bar">
+      <span>Turn Timer: <b id="timer-status-text">OFF (0 Votes)</b></span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="timer-badge" id="timer-countdown" style="display:none;">15s</span>
+        <button class="btn btn-secondary" style="width:auto; margin:0; padding:2px 8px; font-size:0.75rem;" id="vote-timer-btn" onclick="toggleTimerVote()">⏱️ Vote Timer</button>
+      </div>
     </div>
 
     <div class="players-list" id="players-box"></div>
 
     <div id="power-draft-box" style="margin-top: 8px; display: none; background: var(--spotlight-bg); padding: 10px; border-radius: 8px;">
-      <div style="font-size: 0.85rem; font-weight: bold; text-align: center; margin-bottom: 6px;">⚡ Draft 1 Exclusive Power (1 Per Player)</div>
+      <div style="font-size: 0.85rem; font-weight: bold; text-align: center; margin-bottom: 6px;">⚡ Draft 1 Power (Single Use Per Game)</div>
       <div class="power-grid" id="power-grid-options"></div>
     </div>
 
@@ -632,7 +657,6 @@
   let totalCells = 25;
   let targetLetters = [];
 
-  // player schema: [{ id, name, role, ready, lines, wins, power, cooldowns: { double: 0, freeze: 0, peek: 0, shield: 0 } }]
   let players = [];
   let currentTurnIndex = 0;
   let roundStarterIndex = 0;
@@ -644,19 +668,28 @@
   let isManualMode = false;
   let nextManualNumber = 1;
 
+  // Power state (strictly single-use per round)
   let mySelectedPower = null;
+  let isPowerArmed = false;
   let doubleStrikeRemaining = 0;
+  let hasShield = false;
   let roundStats = { callsCount: 0 };
 
-  // Microphone state
+  // Timer state
+  let timerVotes = new Set();
+  let timerActive = false;
+  let timerInterval = null;
+  let timeLeft = 15;
+
+  // Mic state
   let micActive = false;
   let localMediaStream = null;
 
   const POWER_LIST = [
-    { id: 'double', name: '⚡ Double Strike', desc: 'Call 2 numbers on your turn' },
-    { id: 'freeze', name: '❄️ Turn Freeze', desc: 'Skip next player’s move' },
-    { id: 'peek', name: '🎯 Target Peek', desc: 'Preview 2 hidden tiles (Blind mode)' },
-    { id: 'shield', name: '🛡️ Shield', desc: 'Block freeze or skips against you' }
+    { id: 'double', name: '⚡ Double Strike', desc: 'Pick 2 numbers in a single turn' },
+    { id: 'freeze', name: '❄️ Turn Freeze', desc: 'Skip the very next player for 1 turn' },
+    { id: 'peek', name: '🎯 Target Peek', desc: 'Preview 2 hidden tiles for this turn' },
+    { id: 'shield', name: '🛡️ Shield', desc: 'Block 1 freeze attempt against you' }
   ];
 
   window.addEventListener('DOMContentLoaded', () => {
@@ -686,7 +719,7 @@
   updateLinesDropdown();
 
   function getCleanId(pin) {
-    return 'bg-v32-' + pin.trim().toUpperCase();
+    return 'bg-v33-' + pin.trim().toUpperCase();
   }
 
   function setupLetterGoals(size, linesRequired, blind, powerups) {
@@ -711,7 +744,7 @@
 
     document.getElementById('display-size').innerText = `${size}×${size}${isBlindMode ? ' 🕵️' : ''}`;
     document.getElementById('display-target').innerText = `${targetLinesToWin} Line${targetLinesToWin > 1 ? 's' : ''}`;
-    document.getElementById('display-powers-tag').innerText = isPowerUpsEnabled ? '• ⚡ Powers ON' : '';
+    document.getElementById('display-powers-tag').innerText = isPowerUpsEnabled ? '• ⚡ Powers' : '';
 
     grid = Array(totalCells).fill(0);
     crossed = Array(totalCells).fill(false);
@@ -769,6 +802,8 @@
       conn.on('close', () => {
         connections.delete(conn.peer);
         players = players.filter(p => p.id !== conn.peer);
+        timerVotes.delete(conn.peer);
+        checkTimerMajority();
         broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
         renderPlayers();
         if (isPowerUpsEnabled) renderPowerDraftOptions();
@@ -841,7 +876,7 @@
     });
   }
 
-  // --- POWER DRAFTING LOGIC (1 Player per Power + 3-Round Lockout) ---
+  // --- POWER DRAFTING ---
   function renderPowerDraftOptions() {
     if (!isPowerUpsEnabled) return;
     const box = document.getElementById('power-grid-options');
@@ -852,9 +887,7 @@
       const card = document.createElement('div');
       card.className = 'power-card';
 
-      // Check if another player claimed this power
       const claimedBy = players.find(p => p.power === pow.id && p.id !== (myPlayer ? myPlayer.id : null));
-      // Check if in 3-round cooldown for this player
       const cooldownRoundsLeft = (myPlayer && myPlayer.cooldowns) ? (myPlayer.cooldowns[pow.id] || 0) : 0;
 
       if (claimedBy) {
@@ -875,7 +908,7 @@
 
   function selectPower(powerId) {
     if (!isPowerUpsEnabled) return;
-    mySelectedPower = (mySelectedPower === powerId) ? null : powerId; // toggle
+    mySelectedPower = (mySelectedPower === powerId) ? null : powerId;
     
     if (isHost) {
       const p = players.find(x => x.id === peer.id);
@@ -893,7 +926,7 @@
     if (isPowerUpsEnabled && mySelectedPower && myRole === 'player') {
       const pow = POWER_LIST.find(p => p.id === mySelectedPower);
       btn.style.display = 'block';
-      btn.innerText = `USE POWER: ${pow.name}`;
+      btn.innerText = `USE ONCE: ${pow.name}`;
       btn.disabled = false;
     } else {
       btn.style.display = 'none';
@@ -901,18 +934,35 @@
   }
 
   function useActivePower() {
+    const activePlayers = players.filter(p => p.role === 'player');
+    const active = activePlayers[currentTurnIndex];
+    const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
+
+    if (!isMyTurn && mySelectedPower !== 'shield') {
+      return alert("You can only activate this power during your turn!");
+    }
+
     const btn = document.getElementById('active-power-btn');
     btn.disabled = true;
 
     if (mySelectedPower === 'double') {
       doubleStrikeRemaining = 1;
-      alert("⚡ Double Strike Active: Select 2 numbers on your turn!");
+      isPowerArmed = true;
+      document.getElementById('turn-box').innerText = "⚡ Double Strike Armed! Pick your 1st of 2 numbers.";
     } else if (mySelectedPower === 'freeze') {
       sendGameAction({ type: 'trigger_freeze', from: myName });
+      alert("❄️ Freeze Cast! Next player's turn will be skipped.");
     } else if (mySelectedPower === 'peek') {
-      if (isBlindMode) peekTwoHiddenTiles();
-      else alert("Peek only works in Blind Mode!");
+      if (isBlindMode) {
+        peekTwoHiddenTiles();
+      } else {
+        alert("Peek only works in Blind / Mystery Mode!");
+      }
+    } else if (mySelectedPower === 'shield') {
+      hasShield = true;
+      alert("🛡️ Shield Armed! You are immune to the next freeze attempt.");
     }
+
     mySelectedPower = null;
     btn.style.display = 'none';
   }
@@ -922,10 +972,71 @@
     grid.forEach((n, i) => { if (!crossed[i]) uncrossed.push(i); });
     peekedIndices = uncrossed.sort(() => Math.random() - 0.5).slice(0, 2);
     renderBoard();
-    setTimeout(() => {
-      peekedIndices = [];
-      renderBoard();
-    }, 4000);
+  }
+
+  // --- TIMER LOGIC ---
+  function toggleTimerVote() {
+    if (isHost) {
+      if (timerVotes.has(peer.id)) timerVotes.delete(peer.id);
+      else timerVotes.add(peer.id);
+      checkTimerMajority();
+    } else if (hostConn && hostConn.open) {
+      hostConn.send({ type: 'toggle_timer_vote' });
+    }
+  }
+
+  function checkTimerMajority() {
+    const voteCount = timerVotes.size;
+    const majority = Math.floor(players.length / 2) + 1;
+    const isMajority = voteCount >= majority;
+
+    timerActive = isMajority;
+    const timerData = { type: 'sync_timer', voteCount, totalPlayers: players.length, timerActive };
+    broadcast(timerData);
+    handleTimerSync(timerData);
+  }
+
+  function handleTimerSync(data) {
+    const isVotingActive = data.timerActive;
+    document.getElementById('timer-status-text').innerText = `${isVotingActive ? '🟢 ON' : '⚪ OFF'} (${data.voteCount}/${data.totalPlayers} Votes)`;
+    document.getElementById('timer-countdown').style.display = isVotingActive && gameStarted ? 'inline-block' : 'none';
+
+    if (isVotingActive && gameStarted) startTurnTimer();
+    else clearInterval(timerInterval);
+  }
+
+  function startTurnTimer() {
+    clearInterval(timerInterval);
+    timeLeft = 15;
+    document.getElementById('timer-countdown').innerText = `${timeLeft}s`;
+
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      document.getElementById('timer-countdown').innerText = `${timeLeft}s`;
+      if (timeLeft <= 5) playSynth(300, 0.05);
+
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        autoPickNumberForCurrentPlayer();
+      }
+    }, 1000);
+  }
+
+  function autoPickNumberForCurrentPlayer() {
+    const activePlayers = players.filter(p => p.role === 'player');
+    const active = activePlayers[currentTurnIndex];
+    const isMyTurn = (isHost && active && active.id === peer.id) || (!isHost && hostConn && active && active.id === peer.id);
+
+    if (isMyTurn) {
+      const available = [];
+      for (let i = 0; i < totalCells; i++) {
+        if (!crossed[i] && grid[i] !== 0) available.push(i);
+      }
+      if (available.length > 0) {
+        const randomIdx = available[Math.floor(Math.random() * available.length)];
+        handleCellClick(randomIdx);
+      }
+    }
   }
 
   // --- TURN-BASED MICROPHONE LOGIC ---
@@ -949,7 +1060,7 @@
           peer.call(getCleanId(roomCode), localMediaStream);
         }
       } catch(e) {
-        alert("Microphone access blocked! Please enable permissions.");
+        alert("Microphone permission blocked. Please enable it in your browser.");
       }
     }
   }
@@ -959,7 +1070,7 @@
     micActive = false;
     micBtn.classList.remove('active');
     micBtn.innerText = "🎙️ Mic OFF";
-    document.getElementById('voice-status').innerText = "🎙️ Mic: Locked (Wait for your turn)";
+    document.getElementById('voice-status').innerText = "🎙️ Mic: Locked";
     if (localMediaStream) {
       localMediaStream.getTracks().forEach(track => track.stop());
       localMediaStream = null;
@@ -990,14 +1101,12 @@
       }
       broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
       renderPlayers();
+      checkTimerMajority();
       if (isPowerUpsEnabled) renderPowerDraftOptions();
     } else if (data.type === 'set_power') {
       const p = players.find(x => x.id === conn.peer);
-      // Double check power is not already claimed
       const isTaken = players.some(other => other.power === data.power && other.id !== conn.peer);
-      if (p && !isTaken) {
-        p.power = data.power;
-      }
+      if (p && !isTaken) p.power = data.power;
       broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
       renderPlayers();
       if (isPowerUpsEnabled) renderPowerDraftOptions();
@@ -1016,9 +1125,13 @@
     } else if (data.type === 'strike') {
       handleMoveStrike(data.num, data.caller);
     } else if (data.type === 'trigger_freeze') {
-      advanceTurn(true);
+      handleFreezeExecution();
     } else if (data.type === 'win') {
       handleWinnerFound(data.name);
+    } else if (data.type === 'toggle_timer_vote') {
+      if (timerVotes.has(conn.peer)) timerVotes.delete(conn.peer);
+      else timerVotes.add(conn.peer);
+      checkTimerMajority();
     } else if (data.type === 'emoji') {
       showFloatingEmoji(data.emoji);
       broadcast({ type: 'emoji', emoji: data.emoji });
@@ -1041,6 +1154,8 @@
       renderPlayers();
       if (isPowerUpsEnabled && !gameStarted) renderPowerDraftOptions();
       if (gameStarted) updateTurnUI();
+    } else if (data.type === 'sync_timer') {
+      handleTimerSync(data);
     } else if (data.type === 'start') {
       gameStarted = true;
       currentTurnIndex = data.currentTurnIndex;
@@ -1051,14 +1166,17 @@
       activatePowerUI();
       updateTurnUI();
       renderPlayers();
+      if (timerActive) startTurnTimer();
     } else if (data.type === 'strike') {
       crossNumber(data.num);
       updateSpotlight(data.num, data.caller);
       currentTurnIndex = data.currentTurnIndex;
       updateTurnUI();
       renderPlayers();
+      if (timerActive) startTurnTimer();
     } else if (data.type === 'win') {
       gameStarted = false;
+      clearInterval(timerInterval);
       muteMicrophone();
       showWinner(data.winner);
       displayStatsModal(data.stats);
@@ -1073,24 +1191,44 @@
     roundStats.callsCount++;
     crossNumber(num);
     updateSpotlight(num, callerName);
-    advanceTurn(false);
-  }
-
-  function advanceTurn(skipped) {
-    const activePlayers = players.filter(p => p.role === 'player');
-    if (activePlayers.length === 0) return;
-
-    if (doubleStrikeRemaining > 0) {
-      doubleStrikeRemaining--;
+    
+    // Check if double strike remains
+    if (doubleStrikeRemaining > 0 && callerName === myName) {
+      doubleStrikeRemaining = 0;
+      broadcast({ type: 'strike', num: num, caller: callerName, currentTurnIndex });
       updateTurnUI();
+      renderPlayers();
+      if (timerActive) startTurnTimer();
       return;
     }
 
-    const step = skipped ? 2 : 1;
+    advanceTurn(1, num, callerName);
+  }
+
+  function handleFreezeExecution() {
+    const activePlayers = players.filter(p => p.role === 'player');
+    const nextIdx = (currentTurnIndex + 1) % activePlayers.length;
+    const targetPlayer = activePlayers[nextIdx];
+
+    // If target player holds an active shield, freeze is blocked!
+    if (targetPlayer && targetPlayer.power === 'shield') {
+      targetPlayer.power = null;
+      alert(`🛡️ ${targetPlayer.name}'s Shield blocked the freeze!`);
+    } else {
+      // Advance by 2 (skip the next player)
+      advanceTurn(2, 0, "Freeze Cast");
+    }
+  }
+
+  function advanceTurn(step, lastNum, callerName) {
+    const activePlayers = players.filter(p => p.role === 'player');
+    if (activePlayers.length === 0) return;
+
     currentTurnIndex = (currentTurnIndex + step) % activePlayers.length;
-    broadcast({ type: 'strike', num: grid[currentTurnIndex] || 0, caller: myName, currentTurnIndex });
+    broadcast({ type: 'strike', num: lastNum, caller: callerName, currentTurnIndex });
     updateTurnUI();
     renderPlayers();
+    if (timerActive) startTurnTimer();
   }
 
   function checkNearWinDrama() {
@@ -1153,6 +1291,7 @@
       activatePowerUI();
       updateTurnUI();
       renderPlayers();
+      if (timerActive) startTurnTimer();
     }
   }
 
@@ -1166,14 +1305,13 @@
     const micBtn = document.getElementById('mic-toggle-btn');
 
     if (isMyTurn) {
-      turnBox.innerText = doubleStrikeRemaining > 0 ? "⚡ Double Strike Turn! Pick 2nd number." : "👉 Your Turn! Pick a tile.";
+      turnBox.innerText = doubleStrikeRemaining > 0 ? "⚡ Pick 2nd Number (Double Strike)!" : "👉 Your Turn! Pick a number.";
       turnBox.style.color = "var(--accent)";
       micBtn.disabled = false;
-      document.getElementById('voice-status').innerText = "🎙️ It's your turn! Switch Mic ON to speak.";
+      document.getElementById('voice-status').innerText = "🎙️ Your Turn! Mic Available";
     } else {
       turnBox.innerText = `Waiting for ${active.name}...`;
       turnBox.style.color = "#94a3b8";
-      // Automatically mute and lock mic if turn ends
       if (micActive) muteMicrophone();
       micBtn.disabled = true;
       document.getElementById('voice-status').innerText = `🎙️ Mic locked (Waiting for ${active.name})`;
@@ -1189,7 +1327,8 @@
     const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
     if (!isMyTurn || crossed[idx]) return;
 
-    if (micActive) muteMicrophone(); // auto mute when number is picked
+    if (micActive) muteMicrophone();
+    peekedIndices = []; // Reset target peek on tap
 
     const chosenNum = grid[idx];
     sendGameAction({ type: 'strike', num: chosenNum, caller: myName });
@@ -1236,23 +1375,14 @@
   function handleWinnerFound(winnerName) {
     document.body.classList.remove('near-win-drama');
     
-    // Apply cooldown decrements & 3-round lockouts
     players.forEach(p => {
-      if (p.name === winnerName) {
-        p.wins = (p.wins || 0) + 1;
-      }
+      if (p.name === winnerName) p.wins = (p.wins || 0) + 1;
       if (!p.cooldowns) p.cooldowns = { double: 0, freeze: 0, peek: 0, shield: 0 };
       
-      // If player used a power this game, lock it for 3 rounds
-      if (p.power) {
-        p.cooldowns[p.power] = 3;
-      }
+      if (p.power) p.cooldowns[p.power] = 3; // 3 round lockout
       
-      // Decrement existing cooldowns
       Object.keys(p.cooldowns).forEach(k => {
-        if (p.power !== k && p.cooldowns[k] > 0) {
-          p.cooldowns[k]--;
-        }
+        if (p.power !== k && p.cooldowns[k] > 0) p.cooldowns[k]--;
       });
       p.power = null;
     });
@@ -1305,6 +1435,10 @@
   function handleLocalReset() {
     crossed = Array(totalCells).fill(false);
     mySelectedPower = null;
+    isPowerArmed = false;
+    doubleStrikeRemaining = 0;
+    hasShield = false;
+    peekedIndices = [];
     muteMicrophone();
     document.getElementById('spotlight-bar').style.display = 'none';
     randomizeBoard();
@@ -1314,7 +1448,7 @@
     document.getElementById('ready-btn').disabled = false;
     document.getElementById('ready-btn').innerText = "Ready";
     document.getElementById('reset-btn').style.display = 'none';
-    document.getElementById('turn-box').innerText = isPowerUpsEnabled ? "Draft power, shuffle board & press Ready!" : "Shuffle board & press Ready!";
+    document.getElementById('turn-box').innerText = isPowerUpsEnabled ? "Draft power, shuffle & press Ready!" : "Shuffle & press Ready!";
     if (isPowerUpsEnabled) renderPowerDraftOptions();
     renderPlayers();
   }
@@ -1335,7 +1469,7 @@
     alert("Direct join link copied to clipboard!");
   }
 
-  // --- BOARD HELPERS ---
+  // --- BOARD & SHUFFLE HELPERS ---
   function createBoard() {
     const board = document.getElementById('board');
     board.innerHTML = '';
@@ -1353,7 +1487,15 @@
 
   function randomizeBoard() {
     if (gameStarted) return;
-    grid = Array.from({length: totalCells}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+    isManualMode = false;
+    const nums = [];
+    for (let i = 1; i <= totalCells; i++) nums.push(i);
+    // Fisher-Yates Shuffle
+    for (let i = nums.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [nums[i], nums[j]] = [nums[j], nums[i]];
+    }
+    grid = nums;
     renderBoard();
   }
 
