@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Multiplayer Bingo</title>
+  <title>Multiplayer Bingo v2</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <style>
@@ -65,7 +65,7 @@
       background: var(--cell-bg);
       border: 1px solid var(--border);
       color: var(--text);
-      font-size: 1.1rem;
+      font-size: 1rem;
       padding: 4px 10px;
       border-radius: 20px;
       cursor: pointer;
@@ -76,11 +76,24 @@
       border-radius: 12px;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
     }
+    .title-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
     h1 {
       text-align: center;
       color: var(--accent);
       font-size: 1.4rem;
-      margin-bottom: 4px;
+    }
+    .v2-badge {
+      background: #10b981;
+      color: #000;
+      font-size: 0.75rem;
+      font-weight: 900;
+      padding: 2px 6px;
+      border-radius: 4px;
     }
     .btn {
       background: var(--btn);
@@ -323,7 +336,10 @@
 
 <div class="container">
   <div class="top-bar">
-    <h1>Multiplayer Bingo</h1>
+    <div class="title-row">
+      <h1>Multiplayer Bingo</h1>
+      <span class="v2-badge">v2.0</span>
+    </div>
     <button class="theme-toggle-btn" onclick="toggleTheme()" id="theme-btn">☀️ Light</button>
   </div>
 
@@ -332,7 +348,7 @@
       <input type="text" id="player-name" placeholder="Your Name" maxlength="10">
       <input type="text" id="room-pin" placeholder="4-Digit Room Code" maxlength="6">
       
-      <label>Host Settings (Size & Rules):</label>
+      <label>Host Settings: Grid Size</label>
       <select id="grid-size-select" onchange="updateLinesDropdown()">
         <option value="3">3 × 3 (Mini 1-9)</option>
         <option value="4">4 × 4 (Quick 1-16)</option>
@@ -344,8 +360,19 @@
         <option value="10">10 × 10 (1-100)</option>
       </select>
 
-      <label>Lines Needed to Win:</label>
-      <select id="target-lines-select"></select>
+      <label>Host Settings: Target Lines to Win</label>
+      <select id="target-lines-select">
+        <option value="1">1 Line (Ultra Fast)</option>
+        <option value="2">2 Lines</option>
+        <option value="3">3 Lines</option>
+        <option value="4">4 Lines</option>
+        <option value="5" selected>5 Lines (Classic BINGO)</option>
+        <option value="6">6 Lines</option>
+        <option value="7">7 Lines</option>
+        <option value="8">8 Lines</option>
+        <option value="9">9 Lines</option>
+        <option value="10">10 Lines</option>
+      </select>
       
       <div class="row" style="margin-top: 6px;">
         <button class="btn" onclick="initHost()">Host Room</button>
@@ -444,3 +471,656 @@
   let roomCode = "";
   let connections = [];
   let hostConn = null;
+  
+  let gridSize = 5;
+  let targetLinesToWin = 5;
+  let totalCells = 25;
+  let targetLetters = [];
+
+  let players = [];
+  let currentTurnIndex = 0;
+  let roundStarterIndex = 0;
+  let grid = [];
+  let crossed = [];
+  let gameStarted = false;
+
+  let isManualMode = false;
+  let nextManualNumber = 1;
+
+  let timerVotes = new Set();
+  let timerActive = false;
+  let timerInterval = null;
+  let timeLeft = 15;
+
+  const lobbyPanel = document.getElementById('lobby-panel');
+  const gamePanel = document.getElementById('game-panel');
+  const boardEl = document.getElementById('board');
+  const turnBox = document.getElementById('turn-box');
+  const readyBtn = document.getElementById('ready-btn');
+  const resetBtn = document.getElementById('reset-btn');
+  const emojiBar = document.getElementById('emoji-bar');
+  const lobbyStatus = document.getElementById('lobby-status');
+  const trackerBar = document.getElementById('tracker-bar');
+  const targetLinesSelect = document.getElementById('target-lines-select');
+  const spotlightBar = document.getElementById('spotlight-bar');
+  const spotlightNum = document.getElementById('spotlight-num');
+  const spotlightCaller = document.getElementById('spotlight-caller');
+  const timerStatusText = document.getElementById('timer-status-text');
+  const timerCountdown = document.getElementById('timer-countdown');
+
+  function updateLinesDropdown() {
+    const size = parseInt(document.getElementById('grid-size-select').value, 10);
+    const maxPossible = Math.min((size * 2) + 2, 10);
+    const currentVal = parseInt(targetLinesSelect.value, 10);
+    
+    targetLinesSelect.innerHTML = '';
+    for (let i = 1; i <= maxPossible; i++) {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.innerText = `${i} Line${i > 1 ? 's' : ''}${i === size ? ' (Standard)' : ''}`;
+      if (i === (currentVal <= maxPossible ? currentVal : size)) opt.selected = true;
+      targetLinesSelect.appendChild(opt);
+    }
+  }
+
+  function vibrate(pattern) {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  }
+
+  function getCleanId(pin) {
+    return 'bg-v2-' + pin.trim().toUpperCase();
+  }
+
+  function setupLetterGoals(size, linesRequired) {
+    gridSize = size;
+    targetLinesToWin = linesRequired;
+    totalCells = size * size;
+    
+    const alphabet = "BINGOEXCELVICTORY";
+    targetLetters = alphabet.slice(0, targetLinesToWin).split('');
+    
+    trackerBar.innerHTML = '';
+    targetLetters.forEach((char, i) => {
+      const el = document.createElement('div');
+      el.className = 'letter';
+      el.id = `let-${i}`;
+      el.innerText = char;
+      trackerBar.appendChild(el);
+    });
+
+    document.getElementById('display-size').innerText = `${size}×${size}`;
+    document.getElementById('display-target').innerText = `${targetLinesToWin} Line${targetLinesToWin > 1 ? 's' : ''}`;
+    grid = Array(totalCells).fill(0);
+    crossed = Array(totalCells).fill(false);
+  }
+
+  function updateSpotlight(num, callerName) {
+    spotlightBar.style.display = 'flex';
+    spotlightNum.innerText = num;
+    spotlightCaller.innerText = `Called by ${callerName}:`;
+    spotlightNum.style.animation = 'none';
+    spotlightNum.offsetHeight;
+    spotlightNum.style.animation = 'popIn 0.3s ease';
+  }
+
+  function initHost() {
+    myName = document.getElementById('player-name').value.trim() || 'Host';
+    roomCode = document.getElementById('room-pin').value.trim().toUpperCase();
+    const chosenSize = parseInt(document.getElementById('grid-size-select').value, 10);
+    const chosenLines = parseInt(document.getElementById('target-lines-select').value, 10);
+    if (!roomCode) return alert('Enter a 4-digit code first!');
+
+    lobbyStatus.innerText = "Creating room...";
+    lobbyStatus.style.color = "#38bdf8";
+
+    peer = new Peer(getCleanId(roomCode), peerConfig);
+
+    peer.on('open', () => {
+      isHost = true;
+      setupLetterGoals(chosenSize, chosenLines);
+      showGameUI();
+      players.push({ id: peer.id, name: myName, ready: false, lines: 0, wins: 0 });
+      renderPlayers();
+    });
+
+    peer.on('connection', (conn) => {
+      connections.push(conn);
+      conn.on('open', () => {
+        conn.send({ type: 'init_config', gridSize, targetLinesToWin });
+      });
+      conn.on('data', (data) => handleHostIncomingData(conn, data));
+      conn.on('close', () => {
+        connections = connections.filter(c => c !== conn);
+        players = players.filter(p => p.id !== conn.peer);
+        timerVotes.delete(conn.peer);
+        checkTimerMajority();
+        broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+        renderPlayers();
+      });
+    });
+
+    peer.on('error', (err) => {
+      lobbyStatus.innerText = err.type === 'unavailable-id' ? "Code '" + roomCode + "' is busy. Try another code!" : "Error: " + err.type;
+      lobbyStatus.style.color = "#ef4444";
+    });
+  }
+
+  function initJoin() {
+    myName = document.getElementById('player-name').value.trim() || 'Guest';
+    roomCode = document.getElementById('room-pin').value.trim().toUpperCase();
+    if (!roomCode) return alert('Enter the Host\'s 4-digit code first!');
+
+    lobbyStatus.innerText = "Connecting to Host...";
+    lobbyStatus.style.color = "#38bdf8";
+
+    peer = new Peer(peerConfig);
+
+    peer.on('open', () => {
+      hostConn = peer.connect(getCleanId(roomCode), { reliable: true });
+      
+      hostConn.on('open', () => {
+        isHost = false;
+        hostConn.send({ type: 'join', name: myName });
+      });
+
+      hostConn.on('data', (data) => handleClientIncomingData(data));
+      hostConn.on('close', () => alert('Disconnected from host.'));
+    });
+
+    peer.on('error', () => {
+      lobbyStatus.innerText = "Cannot find room. Ensure Host created it first!";
+      lobbyStatus.style.color = "#ef4444";
+    });
+  }
+
+  function showGameUI() {
+    lobbyPanel.style.display = 'none';
+    gamePanel.style.display = 'block';
+    document.getElementById('display-room').innerText = roomCode;
+    createBoard();
+    randomizeBoard();
+  }
+
+  function broadcast(msg) {
+    connections.forEach(c => { if(c.open) c.send(msg); });
+  }
+
+  function toggleTimerVote() {
+    if (isHost) {
+      if (timerVotes.has(peer.id)) timerVotes.delete(peer.id);
+      else timerVotes.add(peer.id);
+      checkTimerMajority();
+    } else {
+      hostConn.send({ type: 'toggle_timer_vote' });
+    }
+  }
+
+  function checkTimerMajority() {
+    const voteCount = timerVotes.size;
+    const majority = Math.floor(players.length / 2) + 1;
+    const isMajority = voteCount >= majority;
+
+    timerActive = isMajority;
+    const timerData = { type: 'sync_timer', voteCount, totalPlayers: players.length, timerActive };
+    broadcast(timerData);
+    handleTimerSync(timerData);
+  }
+
+  function handleTimerSync(data) {
+    const isVotingActive = data.timerActive;
+    timerStatusText.innerText = `${isVotingActive ? '🟢 ON' : '⚪ OFF'} (${data.voteCount}/${data.totalPlayers} Votes)`;
+    timerCountdown.style.display = isVotingActive && gameStarted ? 'inline-block' : 'none';
+
+    if (isVotingActive && gameStarted) {
+      startTurnTimer();
+    } else {
+      clearInterval(timerInterval);
+    }
+  }
+
+  function startTurnTimer() {
+    clearInterval(timerInterval);
+    timeLeft = 15;
+    timerCountdown.innerText = `${timeLeft}s`;
+
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      timerCountdown.innerText = `${timeLeft}s`;
+      if (timeLeft <= 5) playTone(300, 0.05);
+
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        autoPickNumberForCurrentPlayer();
+      }
+    }, 1000);
+  }
+
+  function autoPickNumberForCurrentPlayer() {
+    const active = players[currentTurnIndex];
+    const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
+
+    if (isMyTurn) {
+      const availableUncrossedIndices = [];
+      for (let i = 0; i < totalCells; i++) {
+        if (!crossed[i] && grid[i] !== 0) availableUncrossedIndices.push(i);
+      }
+      if (availableUncrossedIndices.length > 0) {
+        const randomIdx = availableUncrossedIndices[Math.floor(Math.random() * availableUncrossedIndices.length)];
+        handleCellClick(randomIdx);
+      }
+    }
+  }
+
+  function handleHostIncomingData(conn, data) {
+    if (data.type === 'join') {
+      players.push({ id: conn.peer, name: data.name, ready: false, lines: 0, wins: 0 });
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+      renderPlayers();
+      checkTimerMajority();
+    } else if (data.type === 'ready') {
+      const p = players.find(x => x.id === conn.peer);
+      if (p) p.ready = true;
+      checkAllReady();
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+      renderPlayers();
+    } else if (data.type === 'score_update') {
+      const p = players.find(x => x.id === conn.peer);
+      if (p) p.lines = data.lines;
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+      renderPlayers();
+    } else if (data.type === 'strike') {
+      vibrate(40);
+      playTone(440, 0.1);
+      crossNumber(data.num);
+      updateSpotlight(data.num, data.caller);
+      currentTurnIndex = (currentTurnIndex + 1) % players.length;
+      broadcast({ type: 'strike', num: data.num, caller: data.caller, currentTurnIndex });
+      updateTurnUI();
+      renderPlayers();
+      if (timerActive) startTurnTimer();
+    } else if (data.type === 'win') {
+      gameStarted = false;
+      clearInterval(timerInterval);
+      const p = players.find(x => x.id === conn.peer);
+      if (p) {
+        p.lines = targetLinesToWin;
+        p.wins = (p.wins || 0) + 1;
+      }
+      broadcast({ type: 'win', winner: data.name, players });
+      showWinner(data.name);
+      renderPlayers();
+    } else if (data.type === 'toggle_timer_vote') {
+      if (timerVotes.has(conn.peer)) timerVotes.delete(conn.peer);
+      else timerVotes.add(conn.peer);
+      checkTimerMajority();
+    } else if (data.type === 'emoji') {
+      showFloatingEmoji(data.emoji);
+      broadcast({ type: 'emoji', emoji: data.emoji });
+    } else if (data.type === 'request_reset') {
+      resetGameForAll();
+    }
+  }
+
+  function handleClientIncomingData(data) {
+    if (data.type === 'init_config') {
+      setupLetterGoals(data.gridSize, data.targetLinesToWin);
+      showGameUI();
+    } else if (data.type === 'sync_players') {
+      players = data.players;
+      currentTurnIndex = data.currentTurnIndex;
+      gameStarted = data.gameStarted;
+      renderPlayers();
+      if (gameStarted) updateTurnUI();
+    } else if (data.type === 'sync_timer') {
+      handleTimerSync(data);
+    } else if (data.type === 'start') {
+      gameStarted = true;
+      currentTurnIndex = data.currentTurnIndex;
+      document.getElementById('setup-buttons').style.display = 'none';
+      emojiBar.style.display = 'flex';
+      resetBtn.style.display = 'none';
+      updateTurnUI();
+      renderPlayers();
+      vibrate([50, 50, 50]);
+      if (timerActive) startTurnTimer();
+    } else if (data.type === 'strike') {
+      vibrate(40);
+      playTone(440, 0.1);
+      crossNumber(data.num);
+      updateSpotlight(data.num, data.caller);
+      currentTurnIndex = data.currentTurnIndex;
+      updateTurnUI();
+      renderPlayers();
+      if (timerActive) startTurnTimer();
+    } else if (data.type === 'win') {
+      gameStarted = false;
+      clearInterval(timerInterval);
+      players = data.players;
+      showWinner(data.winner);
+      renderPlayers();
+    } else if (data.type === 'emoji') {
+      showFloatingEmoji(data.emoji);
+    } else if (data.type === 'reset') {
+      handleLocalReset();
+    }
+  }
+
+  function startManualFill() {
+    if (gameStarted) return;
+    isManualMode = true;
+    nextManualNumber = 1;
+    grid = Array(totalCells).fill(0);
+    renderBoard();
+    turnBox.innerText = `Tap cell to place: ${nextManualNumber} of ${totalCells}`;
+    turnBox.style.color = "#f59e0b";
+    vibrate(30);
+  }
+
+  function handleManualCellClick(idx) {
+    if (grid[idx] !== 0) return;
+    grid[idx] = nextManualNumber;
+    vibrate(25);
+    playTone(300 + nextManualNumber * 10, 0.05);
+    nextManualNumber++;
+    renderBoard();
+
+    if (nextManualNumber > totalCells) {
+      isManualMode = false;
+      turnBox.innerText = "Board filled! Press Ready.";
+      turnBox.style.color = "#10b981";
+      vibrate([40, 60, 40]);
+    } else {
+      turnBox.innerText = `Tap cell to place: ${nextManualNumber} of ${totalCells}`;
+    }
+  }
+
+  function sendEmoji(emoji) {
+    showFloatingEmoji(emoji);
+    vibrate(20);
+    if (isHost) {
+      broadcast({ type: 'emoji', emoji });
+    } else if (hostConn && hostConn.open) {
+      hostConn.send({ type: 'emoji', emoji });
+    }
+  }
+
+  function showFloatingEmoji(emoji) {
+    const el = document.createElement('div');
+    el.className = 'floating-reaction';
+    el.innerText = emoji;
+    el.style.setProperty('--rand-x', (Math.random() - 0.5) * 2);
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1800);
+  }
+
+  function triggerCelebrationConfetti() {
+    if (typeof confetti === 'function') {
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      setTimeout(() => confetti({ particleCount: 50, angle: 60, spread: 55, origin: { x: 0 } }), 250);
+      setTimeout(() => confetti({ particleCount: 50, angle: 120, spread: 55, origin: { x: 1 } }), 400);
+    }
+  }
+
+  function renderPlayers() {
+    const box = document.getElementById('players-box');
+    box.innerHTML = '';
+    players.forEach((p, idx) => {
+      const row = document.createElement('div');
+      row.className = 'player-row' + (gameStarted && idx === currentTurnIndex ? ' active-turn' : '');
+      
+      let statusText = '';
+      if (!gameStarted) {
+        statusText = p.ready ? '✅ Ready' : '⏳ Waiting';
+      } else {
+        const achieved = targetLetters.slice(0, p.lines).join('');
+        statusText = achieved ? `[${achieved}] (${p.lines}/${targetLinesToWin})` : `0/${targetLinesToWin}`;
+      }
+
+      row.innerHTML = `
+        <div class="player-meta">
+          <span>${p.name}</span>
+          <span class="win-badge">🏆 ${p.wins || 0}</span>
+        </div>
+        <span class="score-badge">${statusText}</span>
+      `;
+      box.appendChild(row);
+    });
+  }
+
+  function setReady() {
+    if (grid.includes(0)) {
+      alert(`Please fill all numbers 1 to ${totalCells} before pressing Ready!`);
+      return;
+    }
+    readyBtn.disabled = true;
+    readyBtn.innerText = "Waiting...";
+    vibrate(40);
+    if (isHost) {
+      const p = players.find(x => x.id === peer.id);
+      if (p) p.ready = true;
+      renderPlayers();
+      checkAllReady();
+      broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+    } else {
+      hostConn.send({ type: 'ready' });
+    }
+  }
+
+  function checkAllReady() {
+    if (players.length >= 2 && players.every(p => p.ready)) {
+      gameStarted = true;
+      currentTurnIndex = roundStarterIndex;
+      document.getElementById('setup-buttons').style.display = 'none';
+      emojiBar.style.display = 'flex';
+      resetBtn.style.display = 'none';
+      broadcast({ type: 'start', currentTurnIndex });
+      updateTurnUI();
+      renderPlayers();
+      vibrate([50, 50, 50]);
+      if (timerActive) startTurnTimer();
+    }
+  }
+
+  function updateTurnUI() {
+    const active = players[currentTurnIndex];
+    if (!active) return;
+    const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
+
+    if (isMyTurn) {
+      turnBox.innerText = "👉 Your Turn! Pick a number.";
+      turnBox.style.color = "var(--accent)";
+    } else {
+      turnBox.innerText = `Waiting for ${active.name}...`;
+      turnBox.style.color = "#94a3b8";
+    }
+  }
+
+  function handleCellClick(idx) {
+    if (isManualMode) {
+      handleManualCellClick(idx);
+      return;
+    }
+    if (!gameStarted) return;
+
+    const active = players[currentTurnIndex];
+    const isMyTurn = (isHost && active.id === peer.id) || (!isHost && hostConn && active.id === peer.id);
+    if (!isMyTurn || crossed[idx]) return;
+
+    vibrate(40);
+    playTone(520, 0.1);
+    const chosenNum = grid[idx];
+    crossNumber(chosenNum);
+    updateSpotlight(chosenNum, myName);
+
+    if (isHost) {
+      currentTurnIndex = (currentTurnIndex + 1) % players.length;
+      broadcast({ type: 'strike', num: chosenNum, caller: myName, currentTurnIndex });
+      updateTurnUI();
+      renderPlayers();
+      if (timerActive) startTurnTimer();
+    } else {
+      hostConn.send({ type: 'strike', num: chosenNum, caller: myName });
+    }
+  }
+
+  function crossNumber(num) {
+    const idx = grid.indexOf(num);
+    if (idx !== -1) {
+      crossed[idx] = true;
+      renderBoard();
+      checkBingo();
+    }
+  }
+
+  function showWinner(winnerName) {
+    turnBox.innerText = `🎉 ${winnerName} won the Game! 🎉`;
+    turnBox.style.color = "#10b981";
+    resetBtn.style.display = 'block';
+    vibrate([100, 50, 100, 50, 300]);
+    triggerCelebrationConfetti();
+    playTone(600, 0.2);
+    setTimeout(() => playTone(800, 0.3), 200);
+  }
+
+  function checkBingo() {
+    let lines = 0;
+
+    for (let r = 0; r < gridSize; r++) {
+      let fullRow = true;
+      for (let c = 0; c < gridSize; c++) {
+        if (!crossed[r * gridSize + c]) { fullRow = false; break; }
+      }
+      if (fullRow) lines++;
+    }
+
+    for (let c = 0; c < gridSize; c++) {
+      let fullCol = true;
+      for (let r = 0; r < gridSize; r++) {
+        if (!crossed[r * gridSize + c]) { fullCol = false; break; }
+      }
+      if (fullCol) lines++;
+    }
+
+    let diag1 = true;
+    for (let i = 0; i < gridSize; i++) {
+      if (!crossed[i * gridSize + i]) { diag1 = false; break; }
+    }
+    if (diag1) lines++;
+
+    let diag2 = true;
+    for (let i = 0; i < gridSize; i++) {
+      if (!crossed[i * gridSize + (gridSize - 1 - i)]) { diag2 = false; break; }
+    }
+    if (diag2) lines++;
+
+    lines = Math.min(lines, targetLinesToWin);
+
+    for (let i = 0; i < targetLinesToWin; i++) {
+      const el = document.getElementById(`let-${i}`);
+      if (el) {
+        if (i < lines) el.classList.add('active');
+        else el.classList.remove('active');
+      }
+    }
+
+    if (isHost) {
+      const p = players.find(x => x.id === peer.id);
+      if (p && p.lines !== lines) {
+        p.lines = lines;
+        broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+        renderPlayers();
+      }
+    } else if (hostConn && hostConn.open) {
+      hostConn.send({ type: 'score_update', lines });
+    }
+
+    if (lines >= targetLinesToWin && gameStarted) {
+      gameStarted = false;
+      clearInterval(timerInterval);
+      if (isHost) {
+        const p = players.find(x => x.id === peer.id);
+        if (p) p.wins = (p.wins || 0) + 1;
+        broadcast({ type: 'win', winner: myName, players });
+      } else {
+        hostConn.send({ type: 'win', name: myName });
+      }
+      showWinner(myName);
+      renderPlayers();
+    }
+  }
+
+  function requestReset() {
+    if (isHost) resetGameForAll();
+    else hostConn.send({ type: 'request_reset' });
+  }
+
+  function resetGameForAll() {
+    players.forEach(p => { 
+      p.ready = false; 
+      p.lines = 0; 
+    });
+    gameStarted = false;
+    roundStarterIndex = (roundStarterIndex + 1) % players.length;
+    currentTurnIndex = roundStarterIndex;
+    
+    clearInterval(timerInterval);
+    broadcast({ type: 'reset' });
+    broadcast({ type: 'sync_players', players, currentTurnIndex, gameStarted });
+    handleLocalReset();
+  }
+
+  function handleLocalReset() {
+    crossed = Array(totalCells).fill(false);
+    for (let i = 0; i < targetLinesToWin; i++) {
+      const el = document.getElementById(`let-${i}`);
+      if (el) el.classList.remove('active');
+    }
+    spotlightBar.style.display = 'none';
+    randomizeBoard();
+    document.getElementById('setup-buttons').style.display = 'flex';
+    emojiBar.style.display = 'none';
+    readyBtn.disabled = false;
+    readyBtn.innerText = "Ready";
+    resetBtn.style.display = 'none';
+    
+    const starterName = players[roundStarterIndex] ? players[roundStarterIndex].name : 'Next Player';
+    turnBox.innerText = `🎯 Next Round Starter: ${starterName}! Shuffle & press Ready.`;
+    turnBox.style.color = "var(--text)";
+    renderPlayers();
+  }
+
+  function createBoard() {
+    boardEl.innerHTML = '';
+    boardEl.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+    
+    const fontSize = gridSize <= 5 ? '1.1rem' : gridSize <= 7 ? '0.9rem' : '0.75rem';
+
+    for (let i = 0; i < totalCells; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.fontSize = fontSize;
+      cell.onclick = () => handleCellClick(i);
+      boardEl.appendChild(cell);
+    }
+  }
+
+  function randomizeBoard() {
+    if (gameStarted) return;
+    isManualMode = false;
+    grid = Array.from({length: totalCells}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+    renderBoard();
+    turnBox.innerText = "Board randomized. Press Ready!";
+    turnBox.style.color = "var(--text)";
+    vibrate(20);
+  }
+
+  function renderBoard() {
+    const cells = boardEl.children;
+    for (let i = 0; i < totalCells; i++) {
+      cells[i].innerText = grid[i] || '';
+      cells[i].className = 'cell' + (crossed[i] ? ' crossed' : '');
+    }
+  }
+</script>
+</body>
+</html>
